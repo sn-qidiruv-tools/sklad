@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
 :root{
   --bg:#070b16;
@@ -200,6 +202,18 @@ body::after{
 .toast.success{background:rgba(79,141,253,.16);color:#bcd6ff;border:1px solid rgba(79,141,253,.35)}
 .toast.error{background:rgba(251,113,133,.14);color:var(--danger);border:1px solid rgba(251,113,133,.32)}
 @keyframes toastIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+
+/* ===== Joylashuv (xarita) tanlash ===== */
+.loc-btn{
+  width:100%;background:var(--surface-2);border:1px dashed var(--border-hi);border-radius:12px;
+  padding:12px;color:var(--text-dim);font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;
+  display:flex;align-items:center;justify-content:center;gap:8px;transition:.15s;
+}
+.loc-btn.picked{border-style:solid;border-color:var(--ok);color:var(--ok);background:rgba(79,209,165,.08)}
+.map-modal{background:var(--panel);border:1px solid var(--border);border-radius:22px;width:100%;max-width:480px;padding:16px;max-height:90vh;display:flex;flex-direction:column;gap:12px}
+#leafletMap{width:100%;height:340px;border-radius:14px;overflow:hidden;background:var(--surface-2)}
+.map-hint{font-size:12px;color:var(--text-dim);text-align:center}
+.map-coords{font-family:var(--mono);font-size:12.5px;text-align:center;color:var(--cyan)}
 </style>
 </head>
 <body>
@@ -370,6 +384,10 @@ body::after{
       <div class="field"><label>Masofa (1/4 dan)</label><input type="text" id="installMasofa" placeholder="Masalan: 120m"></div>
     </div>
     <div class="field">
+      <label>Joylashuv</label>
+      <button type="button" class="loc-btn" id="locBtn">📍 Joylashuvni belgilash</button>
+    </div>
+    <div class="field">
       <label>Rasmlar (2 ta majburiy, 2 ta ixtiyoriy)</label>
       <div class="upload-grid">
         <label class="upload-slot" id="instSlot1"><span class="req">Majburiy</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 20h16"/></svg><span>1-rasm</span><input type="file" accept="image/*"></label>
@@ -381,6 +399,19 @@ body::after{
     <div class="modal-actions">
       <button class="btn btn-secondary" id="installCancel">Bekor qilish</button>
       <button class="btn" id="installConfirm">Tasdiqlash</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="mapOverlay">
+  <div class="map-modal">
+    <h2 style="margin:0">Joylashuvni tanlang</h2>
+    <p class="map-hint">Xarita GPS orqali taxminiy joyni ko'rsatadi — belgini (📍) surib yoki xaritaga bosib aniq nuqtani ko'rsating.</p>
+    <div id="leafletMap"></div>
+    <div class="map-coords" id="mapCoordsText">Aniqlanmoqda...</div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="mapCancel">Bekor qilish</button>
+      <button class="btn" id="mapConfirm">Joylashuvni tasdiqlash</button>
     </div>
   </div>
 </div>
@@ -694,6 +725,7 @@ function openInstall(seriaEnc){
   document.getElementById('installPort').value = '';
   document.getElementById('installMasofa').value = '';
   resetInstallSlots();
+  resetLocation();
   installOverlay.classList.add('show');
 }
 window.openInstall = openInstall;
@@ -709,12 +741,84 @@ document.getElementById('installConfirm').addEventListener('click', async ()=>{
   if(!instFiles[0] || !instFiles[1]){ toast('Kamida 2 ta majburiy rasmni yuklang', 'error'); return; }
   const seria = installSeria;
   const rasmlar = instFiles.filter(Boolean);
+  const lokatsiya = pickedLatLng ? (pickedLatLng.lat.toFixed(6) + ', ' + pickedLatLng.lng.toFixed(6)) : '';
   installOverlay.classList.remove('show');
   try{
-    await postAction({ action:'ornatish', seria, login: currentUser.login, manzil, olt, port, masofa, rasmlar });
+    await postAction({ action:'ornatish', seria, login: currentUser.login, manzil, olt, port, masofa, lokatsiya, rasmlar });
     toast("Qurilma o'rnatildi deb belgilandi", 'success');
     await loadAll(); renderActive(); updateStats();
   }catch(err){ toast(err.message, 'error'); }
+});
+
+// ============ JOYLASHUV (XARITA) ============
+let leafletMapInstance = null, leafletMarker = null, pickedLatLng = null;
+const mapOverlay = document.getElementById('mapOverlay');
+const locBtn = document.getElementById('locBtn');
+const DEFAULT_CENTER = [39.7747, 64.4286]; // Buxoro shahri markazi — GPS berilmasa shu ishlatiladi
+
+function resetLocation(){
+  pickedLatLng = null;
+  locBtn.textContent = '📍 Joylashuvni belgilash';
+  locBtn.classList.remove('picked');
+}
+
+function updateCoordsText(lat, lng){
+  document.getElementById('mapCoordsText').textContent = lat.toFixed(6) + ', ' + lng.toFixed(6);
+}
+
+function openMapPicker(){
+  mapOverlay.classList.add('show');
+  // Xarita faqat ko'rinadigan bo'lgandan keyin ishga tushirilishi kerak
+  // (Leaflet yashirin konteynerda noto'g'ri o'lchov olishi mumkin).
+  setTimeout(()=>{
+    const startCenter = pickedLatLng ? [pickedLatLng.lat, pickedLatLng.lng] : DEFAULT_CENTER;
+    if(!leafletMapInstance){
+      leafletMapInstance = L.map('leafletMap').setView(startCenter, 15);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19, attribution: '© OpenStreetMap'
+      }).addTo(leafletMapInstance);
+      leafletMarker = L.marker(startCenter, { draggable: true }).addTo(leafletMapInstance);
+      leafletMarker.on('dragend', ()=>{
+        const p = leafletMarker.getLatLng();
+        updateCoordsText(p.lat, p.lng);
+      });
+      leafletMapInstance.on('click', (e)=>{
+        leafletMarker.setLatLng(e.latlng);
+        updateCoordsText(e.latlng.lat, e.latlng.lng);
+      });
+    } else {
+      leafletMapInstance.invalidateSize();
+      leafletMapInstance.setView(startCenter, 15);
+      leafletMarker.setLatLng(startCenter);
+    }
+    updateCoordsText(startCenter[0], startCenter[1]);
+
+    // Agar hali joylashuv tanlanmagan bo'lsa — GPS orqali taxminiy joyni olishga urinamiz
+    if(!pickedLatLng && navigator.geolocation){
+      document.getElementById('mapCoordsText').textContent = 'GPS orqali aniqlanmoqda...';
+      navigator.geolocation.getCurrentPosition(
+        (pos)=>{
+          const c = [pos.coords.latitude, pos.coords.longitude];
+          leafletMapInstance.setView(c, 16);
+          leafletMarker.setLatLng(c);
+          updateCoordsText(c[0], c[1]);
+        },
+        ()=>{ updateCoordsText(startCenter[0], startCenter[1]); },
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    }
+  }, 50);
+}
+
+locBtn.addEventListener('click', openMapPicker);
+document.getElementById('mapCancel').addEventListener('click', ()=> mapOverlay.classList.remove('show'));
+mapOverlay.addEventListener('click', e=>{ if(e.target===mapOverlay) mapOverlay.classList.remove('show'); });
+document.getElementById('mapConfirm').addEventListener('click', ()=>{
+  const p = leafletMarker.getLatLng();
+  pickedLatLng = { lat: p.lat, lng: p.lng };
+  locBtn.textContent = '✓ ' + p.lat.toFixed(5) + ', ' + p.lng.toFixed(5);
+  locBtn.classList.add('picked');
+  mapOverlay.classList.remove('show');
 });
 
 const tarixSearch = document.getElementById('tarixSearch');
@@ -734,6 +838,7 @@ function renderTarix(){
         <div class="ticket-code"><span class="bar">${barcodeSpans(8)}</span>${escapeHtml(d['S/N']||'')}</div>
         <div class="ticket-sub">${escapeHtml(d.marka||'')} · ${escapeHtml(d.manzil||'')}</div>
         <div class="ticket-sub">OLT: ${escapeHtml(d.OLT||'')} · Port: ${escapeHtml(d.Port||'')} · Masofa: ${escapeHtml(d.Masofa||'')}</div>
+        ${d.Lokatsiya ? `<div class="ticket-sub">📍 <a href="https://www.google.com/maps?q=${encodeURIComponent(d.Lokatsiya)}" target="_blank" style="color:var(--cyan)">${escapeHtml(d.Lokatsiya)}</a></div>` : ''}
         <span class="ticket-tag">${d.tuman==='buxoro'?'Buxoro':d.tuman==='kogon'?'Kogon':escapeHtml(d.tuman||'')}</span>
       </div>
       <div class="ticket-stub">
