@@ -221,6 +221,7 @@ body::after{
 <div class="loading-screen" id="loadingScreen">
   <div class="loading-spinner"></div>
   <div class="loading-text">Ma'lumotlar yuklanmoqda...</div>
+  <div id="debugInfo" style="font-family:monospace;font-size:11px;color:#7c87ad;max-width:90vw;word-break:break-all;text-align:center;margin-top:10px;line-height:1.6"></div>
 </div>
 
 <div class="login-screen" id="loginScreen" style="display:none">
@@ -500,6 +501,20 @@ async function loadAll(){
 }
 
 async function initApp(){
+  // === VAQTINCHA DIAGNOSTIKA ===
+  // Sahifaning o'zida qaysi APPS_SCRIPT_URL ishlatilayotganini va serverga
+  // ulanish ishlayaptimi-yo'qmi ko'rsatadi — hech qanday DevTools kerak emas.
+  const dbg = document.getElementById('debugInfo');
+  dbg.innerHTML = 'URL: ' + APPS_SCRIPT_URL + '<br>Ulanish tekshirilmoqda...';
+  try{
+    const test = await fetchJson(APPS_SCRIPT_URL);
+    dbg.innerHTML = 'URL: ' + APPS_SCRIPT_URL + '<br>✅ Serverga ulanish OK: ' + JSON.stringify(test);
+  }catch(err){
+    dbg.innerHTML = 'URL: ' + APPS_SCRIPT_URL + '<br>❌ Ulanishda xatolik: ' + err.message;
+  }
+  await new Promise(r=>setTimeout(r, 2500)); // xabarni o'qib olish uchun bir oz kutamiz
+  // === DIAGNOSTIKA TUGADI ===
+
   try{
     await Promise.all([
       (async()=>{ try{ employees = await fetchJson(EMPLOYEES_URL); }catch(e){} })(),
