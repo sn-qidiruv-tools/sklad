@@ -221,7 +221,6 @@ body::after{
 <div class="loading-screen" id="loadingScreen">
   <div class="loading-spinner"></div>
   <div class="loading-text">Ma'lumotlar yuklanmoqda...</div>
-  <div id="debugInfo" style="font-family:monospace;font-size:11px;color:#7c87ad;max-width:90vw;word-break:break-all;text-align:center;margin-top:10px;line-height:1.6"></div>
 </div>
 
 <div class="login-screen" id="loginScreen" style="display:none">
@@ -452,7 +451,7 @@ function toast(msg, type){
   el.className = 'toast ' + (type||'success');
   el.textContent = msg;
   wrap.appendChild(el);
-  setTimeout(()=>el.remove(), type==='error' ? 15000 : 3200);
+  setTimeout(()=>el.remove(), 3200);
 }
 
 async function fetchJson(url){
@@ -501,20 +500,6 @@ async function loadAll(){
 }
 
 async function initApp(){
-  // === VAQTINCHA DIAGNOSTIKA ===
-  // Sahifaning o'zida qaysi APPS_SCRIPT_URL ishlatilayotganini va serverga
-  // ulanish ishlayaptimi-yo'qmi ko'rsatadi — hech qanday DevTools kerak emas.
-  const dbg = document.getElementById('debugInfo');
-  dbg.innerHTML = 'URL: ' + APPS_SCRIPT_URL + '<br>Ulanish tekshirilmoqda...';
-  try{
-    const test = await fetchJson(APPS_SCRIPT_URL);
-    dbg.innerHTML = 'URL: ' + APPS_SCRIPT_URL + '<br>✅ Serverga ulanish OK: ' + JSON.stringify(test);
-  }catch(err){
-    dbg.innerHTML = 'URL: ' + APPS_SCRIPT_URL + '<br>❌ Ulanishda xatolik: ' + err.message;
-  }
-  await new Promise(r=>setTimeout(r, 2500)); // xabarni o'qib olish uchun bir oz kutamiz
-  // === DIAGNOSTIKA TUGADI ===
-
   try{
     await Promise.all([
       (async()=>{ try{ employees = await fetchJson(EMPLOYEES_URL); }catch(e){} })(),
@@ -685,10 +670,8 @@ document.getElementById('olishConfirm').addEventListener('click', async ()=>{
   const seria = olishSeria;
   olishOverlay.classList.remove('show');
   try{
-    const res = await postAction({ action:'olish', seria, login: currentUser.login, manzil, talabnoma_rasm: olishFileData });
+    await postAction({ action:'olish', seria, login: currentUser.login, manzil, talabnoma_rasm: olishFileData });
     toast('Qurilma sizga biriktirildi', 'success');
-    // VAQTINCHA DIAGNOSTIKA: natija har doim ko'rsatiladi (muvaffaqiyatli bo'lsa ham)
-    toast('DEBUG: ' + (res.telegram_debug || '(bo\'sh, hech narsa qaytmadi)'), 'error');
     await loadAll(); renderActive(); updateStats();
   }catch(err){ toast(err.message, 'error'); }
 });
