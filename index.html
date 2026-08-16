@@ -687,8 +687,8 @@ document.getElementById('olishConfirm').addEventListener('click', async ()=>{
   try{
     const res = await postAction({ action:'olish', seria, login: currentUser.login, manzil, talabnoma_rasm: olishFileData });
     toast('Qurilma sizga biriktirildi', 'success');
-    // VAQTINCHA DIAGNOSTIKA: Telegram xatoligi bo'lsa, saytning o'zida ko'rsatamiz
-    if(res.telegram_debug){ toast('TELEGRAM: ' + res.telegram_debug, 'error'); }
+    // VAQTINCHA DIAGNOSTIKA: natija har doim ko'rsatiladi (muvaffaqiyatli bo'lsa ham)
+    toast('DEBUG: ' + (res.telegram_debug || '(bo\'sh, hech narsa qaytmadi)'), 'error');
     await loadAll(); renderActive(); updateStats();
   }catch(err){ toast(err.message, 'error'); }
 });
