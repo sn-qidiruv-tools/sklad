@@ -452,7 +452,7 @@ function toast(msg, type){
   el.className = 'toast ' + (type||'success');
   el.textContent = msg;
   wrap.appendChild(el);
-  setTimeout(()=>el.remove(), 3200);
+  setTimeout(()=>el.remove(), type==='error' ? 15000 : 3200);
 }
 
 async function fetchJson(url){
@@ -685,8 +685,10 @@ document.getElementById('olishConfirm').addEventListener('click', async ()=>{
   const seria = olishSeria;
   olishOverlay.classList.remove('show');
   try{
-    await postAction({ action:'olish', seria, login: currentUser.login, manzil, talabnoma_rasm: olishFileData });
+    const res = await postAction({ action:'olish', seria, login: currentUser.login, manzil, talabnoma_rasm: olishFileData });
     toast('Qurilma sizga biriktirildi', 'success');
+    // VAQTINCHA DIAGNOSTIKA: Telegram xatoligi bo'lsa, saytning o'zida ko'rsatamiz
+    if(res.telegram_debug){ toast('TELEGRAM: ' + res.telegram_debug, 'error'); }
     await loadAll(); renderActive(); updateStats();
   }catch(err){ toast(err.message, 'error'); }
 });
