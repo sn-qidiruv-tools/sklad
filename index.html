@@ -403,6 +403,18 @@ body::after{
   </div>
 </div>
 
+<div class="overlay" id="qaytarishOverlay">
+  <div class="modal">
+    <h2>Omborga qaytarish</h2>
+    <p class="modal-sub">Nima uchun qaytarayotganingizni yozing</p>
+    <div class="field"><label>Sabab</label><input type="text" id="qaytarishSabab" placeholder="Masalan: noto'g'ri qurilma olindi"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" id="qaytarishCancel">Bekor qilish</button>
+      <button class="btn" id="qaytarishConfirm">Qaytarish</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="mapOverlay">
   <div class="map-modal">
     <h2 style="margin:0">Joylashuvni tanlang</h2>
@@ -682,15 +694,28 @@ function renderMening(){
     </div>`).join('');
 }
 
-async function qaytarish(seriaEnc){
-  const seria = decodeURIComponent(seriaEnc);
+let qaytarishSeria = null;
+const qaytarishOverlay = document.getElementById('qaytarishOverlay');
+function qaytarish(seriaEnc){
+  qaytarishSeria = decodeURIComponent(seriaEnc);
+  document.getElementById('qaytarishSabab').value = '';
+  qaytarishOverlay.classList.add('show');
+}
+window.qaytarish = qaytarish;
+document.getElementById('qaytarishCancel').addEventListener('click', ()=> qaytarishOverlay.classList.remove('show'));
+qaytarishOverlay.addEventListener('click', e=>{ if(e.target===qaytarishOverlay) qaytarishOverlay.classList.remove('show'); });
+
+document.getElementById('qaytarishConfirm').addEventListener('click', async ()=>{
+  const sabab = document.getElementById('qaytarishSabab').value.trim();
+  if(!sabab){ toast('Sababni kiriting', 'error'); return; }
+  const seria = qaytarishSeria;
+  qaytarishOverlay.classList.remove('show');
   try{
-    await postAction({ action:'qaytarish', seria, login: currentUser.login });
+    await postAction({ action:'qaytarish', seria, login: currentUser.login, sabab });
     toast('Qurilma omborga qaytarildi', 'success');
     await loadAll(); renderActive(); updateStats();
   }catch(err){ toast(err.message, 'error'); }
-}
-window.qaytarish = qaytarish;
+});
 
 let installSeria = null;
 const installOverlay = document.getElementById('installOverlay');
