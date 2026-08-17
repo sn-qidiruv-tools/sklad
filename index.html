@@ -146,6 +146,12 @@ body::after{
 
 /* ===== TICKET CARD ===== */
 .ticket{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:16px;margin-bottom:14px;overflow:hidden;transition:border-color .15s;display:flex}
+.ticket-vertical{flex-direction:column}
+.ticket-top-actions{display:flex;gap:6px;justify-content:flex-end;padding:10px 14px 0}
+.mini-btn{border:none;border-radius:8px;padding:6px 11px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;transition:transform .1s}
+.mini-btn:active{transform:scale(.95)}
+.mini-btn.primary{background:linear-gradient(120deg, var(--blue), var(--cyan));color:#06101f}
+.mini-btn.ghost{background:transparent;color:var(--danger);border:1px solid rgba(251,113,133,.3)}
 .ticket:hover{border-color:var(--border-hi)}
 .ticket-main{flex:1;padding:15px 14px;min-width:0}
 .ticket-code{font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:.02em;display:flex;align-items:center;gap:7px}
@@ -196,6 +202,14 @@ body::after{
 .upload-slot .opt{color:var(--text-dim);font-size:9px;font-weight:700;position:absolute;top:6px;right:6px;background:rgba(7,11,22,.7);padding:2px 6px;border-radius:100px}
 .upload-slot input{display:none}
 .upload-slot .check{position:absolute;bottom:6px;right:6px;background:var(--ok);color:#06101f;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
+
+.bg-progress{
+  position:fixed;bottom:22px;left:24px;z-index:25;
+  background:var(--surface-solid);border:1px solid var(--border);border-radius:100px;
+  padding:10px 16px 10px 12px;display:flex;align-items:center;gap:9px;
+  box-shadow:0 8px 22px rgba(0,0,10,.4);font-size:12.5px;font-weight:600;color:var(--text-dim);
+}
+.bg-progress-spinner{width:15px;height:15px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--cyan);animation:spin .7s linear infinite;flex-shrink:0}
 
 .toast-wrap{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:100;display:flex;flex-direction:column;gap:8px;width:calc(100% - 28px);max-width:420px}
 .toast{padding:12px 16px;border-radius:12px;font-size:13px;font-weight:600;box-shadow:0 10px 26px rgba(0,0,10,.4);animation:toastIn .2s ease;backdrop-filter:blur(14px)}
@@ -352,7 +366,10 @@ body::after{
   <div class="modal">
     <h2 id="olishTitle">Qurilmani olish</h2>
     <p class="modal-sub">Talabnoma hujjatini yuklang va manzilni kiriting</p>
-    <div class="field"><label>Manzil</label><input type="text" id="olishManzil" placeholder="Masalan: ombor filiali / tashkilot"></div>
+    <div style="display:flex;gap:10px">
+      <div class="field" style="flex:1"><label>Manzil</label><input type="text" id="olishManzil" placeholder="Masalan: ombor filiali / tashkilot"></div>
+      <div class="field" style="width:90px;flex-shrink:0"><label>Uy raqami</label><input type="text" id="olishUy" placeholder="12"></div>
+    </div>
     <div class="field">
       <label>Talabnomani yukla</label>
       <div class="upload-grid" style="grid-template-columns:1fr">
@@ -375,13 +392,17 @@ body::after{
   <div class="modal">
     <h2>Qurilma o'rnatildi</h2>
     <p class="modal-sub">O'rnatish ma'lumotlarini va rasmlarni to'ldiring</p>
-    <div class="field-row">
-      <div class="field"><label>Manzil</label><input type="text" id="installManzil" placeholder="Ko'cha, uy"></div>
-      <div class="field"><label>OLT</label><input type="text" id="installOlt" placeholder="OLT nomi"></div>
+    <div style="display:flex;gap:10px">
+      <div class="field" style="flex:1"><label>Manzil</label><input type="text" id="installManzil" placeholder="Ko'cha nomi"></div>
+      <div class="field" style="width:80px;flex-shrink:0"><label>Uy raqami</label><input type="text" id="installUy" placeholder="12"></div>
     </div>
     <div class="field-row">
+      <div class="field"><label>OLT</label><input type="text" id="installOlt" placeholder="OLT nomi"></div>
       <div class="field"><label>Port</label><input type="text" id="installPort" placeholder="Port raqami"></div>
-      <div class="field"><label>Masofa (1/4 dan)</label><input type="text" id="installMasofa" placeholder="Masalan: 120m"></div>
+    </div>
+    <div class="field">
+      <label>Masofa (1/4 dan, metrda)</label>
+      <input type="text" id="installMasofa" placeholder="Masalan: 120" inputmode="numeric" pattern="[0-9]*">
     </div>
     <div class="field">
       <label>Joylashuv</label>
@@ -428,6 +449,11 @@ body::after{
   </div>
 </div>
 
+<div class="bg-progress" id="bgProgressBadge" style="display:none">
+  <div class="bg-progress-spinner"></div>
+  <span id="bgProgressText">Yuborilmoqda...</span>
+</div>
+
 <div class="toast-wrap" id="toastWrap"></div>
 
 <script>
@@ -466,6 +492,19 @@ async function postAction(payload){
   try{ result = await resp.json(); }catch(e){ throw new Error("Server javobini o'qib bo'lmadi"); }
   if(!result.success) throw new Error(result.error || "Noma'lum xatolik");
   return result;
+}
+
+// ============ FON REJIMIDAGI JARAYON KO'RSATKICHI ============
+let bgTaskCount = 0;
+function bgTaskStart(label){
+  bgTaskCount++;
+  const badge = document.getElementById('bgProgressBadge');
+  document.getElementById('bgProgressText').textContent = label;
+  badge.style.display = 'flex';
+}
+function bgTaskEnd(){
+  bgTaskCount = Math.max(0, bgTaskCount - 1);
+  if(bgTaskCount === 0) document.getElementById('bgProgressBadge').style.display = 'none';
 }
 
 function fileToCompressedBase64(file, maxDim){
@@ -551,6 +590,10 @@ function enterApp(){
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appScreen').style.display = 'block';
   document.getElementById('userName').textContent = currentUser.ism;
+  // Ma'lumot allaqachon initApp() orqali to'liq yuklangan — darhol ko'rsatamiz.
+  renderActive();
+  updateStats();
+  // Fon rejimida (ko'rinmas holda) yangilab qo'yamiz — foydalanuvchi kutmaydi.
   loadAll().then(()=>{ renderActive(); updateStats(); });
 }
 
@@ -663,17 +706,24 @@ async function onOlishFile(e){
 document.getElementById('olishCancel').addEventListener('click', ()=> olishOverlay.classList.remove('show'));
 olishOverlay.addEventListener('click', e=>{ if(e.target===olishOverlay) olishOverlay.classList.remove('show'); });
 
-document.getElementById('olishConfirm').addEventListener('click', async ()=>{
-  const manzil = document.getElementById('olishManzil').value.trim();
-  if(!manzil){ toast('Manzilni kiriting', 'error'); return; }
+document.getElementById('olishConfirm').addEventListener('click', ()=>{
+  const manzilBase = document.getElementById('olishManzil').value.trim();
+  const uy = document.getElementById('olishUy').value.trim();
+  const manzil = uy ? (manzilBase + ', ' + uy + '-uy') : manzilBase;
+  if(!manzilBase){ toast('Manzilni kiriting', 'error'); return; }
   if(!olishFileData){ toast('Talabnoma rasmini yuklang', 'error'); return; }
   const seria = olishSeria;
   olishOverlay.classList.remove('show');
-  try{
-    await postAction({ action:'olish', seria, login: currentUser.login, manzil, talabnoma_rasm: olishFileData });
-    toast('Qurilma sizga biriktirildi', 'success');
-    await loadAll(); renderActive(); updateStats();
-  }catch(err){ toast(err.message, 'error'); }
+
+  // === FON REJIMIDA ===
+  bgTaskStart('Biriktirilmoqda: ' + seria);
+  postAction({ action:'olish', seria, login: currentUser.login, ism: currentUser.ism, manzil, talabnoma_rasm: olishFileData })
+    .then(()=>{ toast('Qurilma sizga biriktirildi', 'success'); })
+    .catch(err=>{ toast(err.message, 'error'); })
+    .finally(()=>{
+      bgTaskEnd();
+      loadAll().then(()=>{ renderActive(); updateStats(); });
+    });
 });
 
 function renderMening(){
@@ -681,15 +731,15 @@ function renderMening(){
   const el = document.getElementById('meningResults');
   if(list.length === 0){ el.innerHTML = `<div class="empty-msg">Siz hali hech qanday qurilma olmagansiz</div>`; return; }
   el.innerHTML = list.slice(0,150).map(d => `
-    <div class="ticket">
+    <div class="ticket ticket-vertical">
+      <div class="ticket-top-actions">
+        <button class="mini-btn primary" onclick="openInstall('${encodeURIComponent(d['S/N'])}')">✅ Tasdiqlash</button>
+        <button class="mini-btn ghost" onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">✕ Bekor qilish</button>
+      </div>
       <div class="ticket-main">
         <div class="ticket-code"><span class="bar">${barcodeSpans(8)}</span>${escapeHtml(d['S/N']||'')}</div>
         <div class="ticket-sub">${escapeHtml(d.marka||'')} · Olingan: ${escapeHtml(d.sana||'')}</div>
         <span class="ticket-tag">${d.tuman==='buxoro'?'Buxoro':d.tuman==='kogon'?'Kogon':escapeHtml(d.tuman||'')}</span>
-      </div>
-      <div class="ticket-stub">
-        <button class="stub-btn primary" onclick="openInstall('${encodeURIComponent(d['S/N'])}')">O'rnatildi</button>
-        <button class="stub-btn ghost" onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">Qaytarish</button>
       </div>
     </div>`).join('');
 }
@@ -746,6 +796,7 @@ async function onInstallFile(e, idx, required){
 function openInstall(seriaEnc){
   installSeria = decodeURIComponent(seriaEnc);
   document.getElementById('installManzil').value = '';
+  document.getElementById('installUy').value = '';
   document.getElementById('installOlt').value = '';
   document.getElementById('installPort').value = '';
   document.getElementById('installMasofa').value = '';
@@ -753,26 +804,38 @@ function openInstall(seriaEnc){
   resetLocation();
   installOverlay.classList.add('show');
 }
+
+// Masofa maydoniga faqat raqam kiritilishini majburlaymiz
+document.getElementById('installMasofa').addEventListener('input', (e)=>{
+  e.target.value = e.target.value.replace(/[^0-9]/g, '');
+});
 window.openInstall = openInstall;
 document.getElementById('installCancel').addEventListener('click', ()=> installOverlay.classList.remove('show'));
 installOverlay.addEventListener('click', e=>{ if(e.target===installOverlay) installOverlay.classList.remove('show'); });
 
-document.getElementById('installConfirm').addEventListener('click', async ()=>{
-  const manzil = document.getElementById('installManzil').value.trim();
+document.getElementById('installConfirm').addEventListener('click', ()=>{
+  const manzilBase = document.getElementById('installManzil').value.trim();
+  const uy = document.getElementById('installUy').value.trim();
+  const manzil = uy ? (manzilBase + ', ' + uy + '-uy') : manzilBase;
   const olt = document.getElementById('installOlt').value.trim();
   const port = document.getElementById('installPort').value.trim();
   const masofa = document.getElementById('installMasofa').value.trim();
-  if(!manzil || !olt || !port || !masofa){ toast("Barcha maydonlarni to'ldiring", 'error'); return; }
+  if(!manzilBase || !olt || !port || !masofa){ toast("Barcha maydonlarni to'ldiring", 'error'); return; }
   if(!instFiles[0] || !instFiles[1]){ toast('Kamida 2 ta majburiy rasmni yuklang', 'error'); return; }
   const seria = installSeria;
   const rasmlar = instFiles.filter(Boolean);
   const lokatsiya = pickedLatLng ? (pickedLatLng.lat.toFixed(6) + ', ' + pickedLatLng.lng.toFixed(6)) : '';
   installOverlay.classList.remove('show');
-  try{
-    await postAction({ action:'ornatish', seria, login: currentUser.login, manzil, olt, port, masofa, lokatsiya, rasmlar });
-    toast("Qurilma o'rnatildi deb belgilandi", 'success');
-    await loadAll(); renderActive(); updateStats();
-  }catch(err){ toast(err.message, 'error'); }
+
+  // === FON REJIMIDA ===
+  bgTaskStart("O'rnatilmoqda: " + seria);
+  postAction({ action:'ornatish', seria, login: currentUser.login, ism: currentUser.ism, manzil, olt, port, masofa, lokatsiya, rasmlar })
+    .then(()=>{ toast("Qurilma o'rnatildi deb belgilandi", 'success'); })
+    .catch(err=>{ toast(err.message, 'error'); })
+    .finally(()=>{
+      bgTaskEnd();
+      loadAll().then(()=>{ renderActive(); updateStats(); });
+    });
 });
 
 // ============ JOYLASHUV (XARITA) ============
@@ -853,10 +916,11 @@ tarixSearchClear.addEventListener('click', ()=>{ tarixSearch.value=''; tarixSear
 
 function renderTarix(){
   const q = normalize(tarixSearch.value.trim());
-  let list = chiqim.slice().reverse();
+  // Faqat o'z (joriy xodim) o'rnatgan qurilmalari ko'rsatiladi
+  let list = chiqim.filter(d => normalize(d.login) === normalize(currentUser.login)).slice().reverse();
   if(q.length >= 2) list = list.filter(d => normalize(d['S/N']).includes(q));
   const el = document.getElementById('tarixResults');
-  if(list.length === 0){ el.innerHTML = `<div class="empty-msg">${q ? "Topilmadi" : "Hali hech narsa o'rnatilmagan"}</div>`; return; }
+  if(list.length === 0){ el.innerHTML = `<div class="empty-msg">${q ? "Topilmadi" : "Siz hali hech narsa o'rnatmagansiz"}</div>`; return; }
   el.innerHTML = list.slice(0,150).map(d => `
     <div class="ticket">
       <div class="ticket-main">
@@ -867,7 +931,7 @@ function renderTarix(){
         <span class="ticket-tag">${d.tuman==='buxoro'?'Buxoro':d.tuman==='kogon'?'Kogon':escapeHtml(d.tuman||'')}</span>
       </div>
       <div class="ticket-stub">
-        <div class="stub-btn info" style="cursor:default">${escapeHtml(d.login||'')}<br>${escapeHtml(d.sana||'')}</div>
+        <div class="stub-btn info" style="cursor:default">${escapeHtml(d.Ism||d.login||'')}<br>${escapeHtml(d.sana||'')}</div>
       </div>
     </div>`).join('');
 }
