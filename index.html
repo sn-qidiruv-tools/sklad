@@ -496,10 +496,9 @@ body::after{
 <script>
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwTjE4zHu_-UL4Lml-RFesU0TAh2HGvV951VM31LGIxk-gGS1ICulC1kJH-DzVr_l1mOg/exec";
 const EMPLOYEES_URL = APPS_SCRIPT_URL + "?action=employees";
-const SKLAD_URL = APPS_SCRIPT_URL + "?action=sklad";
-const KIRIM_URL = APPS_SCRIPT_URL + "?action=kirim";
-const CHIQIM_URL = APPS_SCRIPT_URL + "?action=chiqim";
-const SOROVLAR_URL = APPS_SCRIPT_URL + "?action=sorovlar";
+// TEZLASHTIRISH: sklad+kirim+chiqim+sorovlar endi 4 ta alohida so'rov
+// o'rniga BITTA "bootstrap" so'rovda keladi — sahifa tezroq yuklanadi.
+const BOOTSTRAP_URL = APPS_SCRIPT_URL + "?action=bootstrap";
 
 let employees = [], sklad = [], kirim = [], chiqim = [], sorovlar = [];
 let currentUser = null;
@@ -615,8 +614,8 @@ function fileToCompressedBase64(file, maxDim){
 
 async function loadAll(){
   try{
-    const [s, k, c, sv] = await Promise.all([fetchJson(SKLAD_URL), fetchJson(KIRIM_URL), fetchJson(CHIQIM_URL), fetchJson(SOROVLAR_URL).catch(()=>[])]);
-    sklad = s || []; kirim = k || []; chiqim = c || []; sorovlar = sv || [];
+    const data = await fetchJson(BOOTSTRAP_URL);
+    sklad = data.sklad || []; kirim = data.kirim || []; chiqim = data.chiqim || []; sorovlar = data.sorovlar || [];
   }catch(err){
     toast("Ma'lumotlarni yuklashda xatolik", 'error');
   }
