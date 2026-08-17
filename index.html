@@ -366,10 +366,7 @@ body::after{
   <div class="modal">
     <h2 id="olishTitle">Qurilmani olish</h2>
     <p class="modal-sub">Talabnoma hujjatini yuklang va manzilni kiriting</p>
-    <div style="display:flex;gap:10px">
-      <div class="field" style="flex:1"><label>Manzil</label><input type="text" id="olishManzil" placeholder="Masalan: ombor filiali / tashkilot"></div>
-      <div class="field" style="width:90px;flex-shrink:0"><label>Uy raqami</label><input type="text" id="olishUy" placeholder="12"></div>
-    </div>
+    <div class="field"><label>Manzil</label><input type="text" id="olishManzil" placeholder="Masalan: ombor filiali / tashkilot"></div>
     <div class="field">
       <label>Talabnomani yukla</label>
       <div class="upload-grid" style="grid-template-columns:1fr">
@@ -580,7 +577,7 @@ async function doLogin(){
     if(employees.length === 0){ employees = await fetchJson(EMPLOYEES_URL); }
     const found = employees.find(e => normalize(e.LOGIN) === normalize(loginVal) && (e.PAROL||'').toString().trim() === passVal);
     if(found){
-      currentUser = { ism: found.ISM, login: found.LOGIN, tuman: (found.tuman||'').toString().trim() };
+      currentUser = { ism: found.ISM, login: found.LOGIN, tuman: (found.tuman||'').toString().trim(), role: (found.dostup||'xodim').toString().trim().toLowerCase() };
       localStorage.setItem('sklad_user', JSON.stringify(currentUser));
       enterApp();
     }else{
@@ -602,6 +599,8 @@ function enterApp(){
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appScreen').style.display = 'block';
   document.getElementById('userName').textContent = currentUser.ism;
+  // "+ Yangi" (qurilma qo'shish) tugmasi faqat admin uchun ko'rinadi
+  document.getElementById('addBtn').style.display = (currentUser.role === 'admin') ? 'flex' : 'none';
   // Ma'lumot allaqachon initApp() orqali to'liq yuklangan — darhol ko'rsatamiz.
   renderActive();
   updateStats();
@@ -651,7 +650,7 @@ function showPanel(name){
   panelSklad.style.display = name==='sklad' ? 'block':'none';
   panelMening.style.display = name==='mening' ? 'block':'none';
   panelTarix.style.display = name==='tarix' ? 'block':'none';
-  document.getElementById('addBtn').style.display = name==='sklad' ? 'flex':'none';
+  document.getElementById('addBtn').style.display = (name==='sklad' && currentUser.role==='admin') ? 'flex':'none';
   renderActive();
 }
 [navBtns.sklad, navBtns.mening, navBtns.tarix].forEach((pair, i)=>{
@@ -679,7 +678,11 @@ function renderSklad(){
   if(q.length >= 2) list = list.filter(d => normalize(d['S/N']).includes(q));
   const el = document.getElementById('skladResults');
   if(list.length === 0){ el.innerHTML = `<div class="empty-msg">${q ? "Hech narsa topilmadi" : "Skladda qurilma yo'q"}</div>`; return; }
-  el.innerHTML = list.slice(0,150).map(d => `
+  const isAdmin = currentUser.role === 'admin';
+  el.innerHTML = list.slice(0,150).map(d => {
+    const ownTuman = normalizeTuman(d.tuman) === normalizeTuman(currentUser.tuman);
+    const canTake = isAdmin || ownTuman;
+    return `
     <div class="ticket">
       <div class="ticket-main">
         <div class="ticket-code"><span class="bar">${barcodeSpans(8)}</span>${escapeHtml(d['S/N']||'')}</div>
@@ -687,9 +690,12 @@ function renderSklad(){
         <span class="ticket-tag">${tumanLabel(d.tuman)}</span>
       </div>
       <div class="ticket-stub">
-        <button class="stub-btn primary" onclick="openOlish('${encodeURIComponent(d['S/N'])}')">Oldim</button>
+        ${canTake
+          ? `<button class="stub-btn primary" onclick="openOlish('${encodeURIComponent(d['S/N'])}')">Oldim</button>`
+          : `<div class="stub-btn info" style="cursor:default;text-align:center">Boshqa tuman</div>`}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 let olishSeria = null, olishFileData = null;
@@ -719,17 +725,15 @@ document.getElementById('olishCancel').addEventListener('click', ()=> olishOverl
 olishOverlay.addEventListener('click', e=>{ if(e.target===olishOverlay) olishOverlay.classList.remove('show'); });
 
 document.getElementById('olishConfirm').addEventListener('click', ()=>{
-  const manzilBase = document.getElementById('olishManzil').value.trim();
-  const uy = document.getElementById('olishUy').value.trim();
-  const manzil = uy ? (manzilBase + ', ' + uy + '-uy') : manzilBase;
-  if(!manzilBase){ toast('Manzilni kiriting', 'error'); return; }
+  const manzil = document.getElementById('olishManzil').value.trim();
+  if(!manzil){ toast('Manzilni kiriting', 'error'); return; }
   if(!olishFileData){ toast('Talabnoma rasmini yuklang', 'error'); return; }
   const seria = olishSeria;
   olishOverlay.classList.remove('show');
 
   // === FON REJIMIDA ===
   bgTaskStart('Biriktirilmoqda: ' + seria);
-  postAction({ action:'olish', seria, login: currentUser.login, ism: currentUser.ism, manzil, talabnoma_rasm: olishFileData })
+  postAction({ action:'olish', seria, login: currentUser.login, ism: currentUser.ism, role: currentUser.role, tuman: currentUser.tuman, manzil, talabnoma_rasm: olishFileData })
     .then((res)=>{
       toast('Qurilma sizga biriktirildi', 'success');
       if(res.telegram_debug){ toast('TELEGRAM: ' + res.telegram_debug, 'error'); }
@@ -776,7 +780,7 @@ document.getElementById('qaytarishConfirm').addEventListener('click', async ()=>
   const seria = qaytarishSeria;
   qaytarishOverlay.classList.remove('show');
   try{
-    await postAction({ action:'qaytarish', seria, login: currentUser.login, sabab });
+    await postAction({ action:'qaytarish', seria, login: currentUser.login, role: currentUser.role, sabab });
     toast('Qurilma omborga qaytarildi', 'success');
     await loadAll(); renderActive(); updateStats();
   }catch(err){ toast(err.message, 'error'); }
@@ -844,7 +848,7 @@ document.getElementById('installConfirm').addEventListener('click', ()=>{
 
   // === FON REJIMIDA ===
   bgTaskStart("O'rnatilmoqda: " + seria);
-  postAction({ action:'ornatish', seria, login: currentUser.login, ism: currentUser.ism, manzil, olt, port, masofa, lokatsiya, rasmlar })
+  postAction({ action:'ornatish', seria, login: currentUser.login, ism: currentUser.ism, role: currentUser.role, manzil, olt, port, masofa, lokatsiya, rasmlar })
     .then(()=>{ toast("Qurilma o'rnatildi deb belgilandi", 'success'); })
     .catch(err=>{ toast(err.message, 'error'); })
     .finally(()=>{
@@ -877,9 +881,13 @@ function openMapPicker(){
     const startCenter = pickedLatLng ? [pickedLatLng.lat, pickedLatLng.lng] : DEFAULT_CENTER;
     if(!leafletMapInstance){
       leafletMapInstance = L.map('leafletMap').setView(startCenter, 15);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19, attribution: '© OpenStreetMap'
       }).addTo(leafletMapInstance);
+      const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19, attribution: 'Tiles © Esri'
+      });
+      L.control.layers({ '🗺️ Xarita': streetLayer, '🛰️ Sputnik': satelliteLayer }, null, { position: 'topright', collapsed: false }).addTo(leafletMapInstance);
       leafletMarker = L.marker(startCenter, { draggable: true }).addTo(leafletMapInstance);
       leafletMarker.on('dragend', ()=>{
         const p = leafletMarker.getLatLng();
@@ -966,7 +974,7 @@ document.getElementById('addConfirm').addEventListener('click', async ()=>{
   if(!seria){ toast('Seriya raqamini kiriting', 'error'); return; }
   addOverlay.classList.remove('show');
   try{
-    await postAction({ action:'yangi_sklad', seria, marka, tuman });
+    await postAction({ action:'yangi_sklad', seria, marka, tuman, role: currentUser.role });
     toast("Qurilma skladga qo'shildi", 'success');
     await loadAll(); renderActive(); updateStats();
   }catch(err){ toast(err.message, 'error'); }
