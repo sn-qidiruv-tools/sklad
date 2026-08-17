@@ -15,6 +15,7 @@
   --panel:#0d1220;
   --surface:rgba(19,25,44,0.72);
   --surface-2:rgba(27,34,58,0.85);
+  --surface-solid:#141a2c;
   --border:rgba(120,148,255,0.14);
   --border-hi:rgba(120,165,255,0.36);
   --text:#eef1fc;
@@ -24,6 +25,7 @@
   --violet:#8b7bff;
   --danger:#fb7185;
   --ok:#4fd1a5;
+  --warn:#fbbf24;
   --mono:'JetBrains Mono',monospace;
 }
 *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
@@ -87,32 +89,10 @@ body::after{
 .err-msg{color:var(--danger);font-size:12.5px;margin-top:10px;display:none}
 .err-msg.show{display:block}
 
-/* ===== APP SHELL: icon-rail (chap) + kontent ===== */
+/* ===== APP SHELL — bitta (mobil uslubdagi) rejim, desktopda ham bir xil ===== */
 #appScreen{position:relative;z-index:1;display:none;min-height:100vh}
-.shell{display:flex;max-width:920px;margin:0 auto}
-.rail{
-  width:66px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:8px;
-  padding:18px 0;position:sticky;top:0;height:100vh;
-}
-.rail-logo{
-  width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg, var(--blue), var(--violet));
-  display:flex;align-items:center;justify-content:center;font-size:16px;margin-bottom:14px;flex-shrink:0;
-}
-.rail-btn{
-  width:44px;height:44px;border-radius:13px;border:1px solid transparent;background:transparent;
-  color:var(--text-dim);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:18px;
-  transition:.15s;
-}
-.rail-btn.active{background:var(--surface);border-color:var(--border-hi);color:var(--cyan)}
-.rail-btn:not(.active):hover{background:var(--surface);color:var(--text)}
-.rail-spacer{flex:1}
-.rail-badge{ position:relative; }
-.rail-badge .count{
-  position:absolute;top:-3px;right:-3px;background:var(--violet);color:#06101f;font-size:9px;font-weight:800;
-  min-width:15px;height:15px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;
-}
-
-.main{flex:1;min-width:0;padding:18px 16px 100px}
+.shell{max-width:640px;margin:0 auto}
+.main{padding:18px 16px 108px}
 .top-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:10px}
 .greet{font-size:13px;color:var(--text-dim)}
 .greet b{color:var(--text);font-weight:700}
@@ -147,11 +127,13 @@ body::after{
 /* ===== TICKET CARD ===== */
 .ticket{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:16px;margin-bottom:14px;overflow:hidden;transition:border-color .15s;display:flex}
 .ticket-vertical{flex-direction:column}
+.ticket.expired{border-color:rgba(251,113,133,.4)}
 .ticket-top-actions{display:flex;gap:6px;justify-content:flex-end;padding:10px 14px 0}
 .mini-btn{border:none;border-radius:8px;padding:6px 11px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;transition:transform .1s}
 .mini-btn:active{transform:scale(.95)}
 .mini-btn.primary{background:linear-gradient(120deg, var(--blue), var(--cyan));color:#06101f}
 .mini-btn.ghost{background:transparent;color:var(--danger);border:1px solid rgba(251,113,133,.3)}
+.mini-btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
 .ticket:hover{border-color:var(--border-hi)}
 .ticket-main{flex:1;padding:15px 14px;min-width:0}
 .ticket-code{font-family:var(--mono);font-size:15px;font-weight:700;letter-spacing:.02em;display:flex;align-items:center;gap:7px}
@@ -160,7 +142,9 @@ body::after{
 .ticket-code .bar span:nth-child(odd){height:9px}
 .ticket-code .bar span:nth-child(even){height:13px}
 .ticket-sub{color:var(--text-dim);font-size:12px;margin-top:5px}
-.ticket-tag{display:inline-block;margin-top:9px;font-size:10px;font-weight:700;padding:3px 9px;border-radius:100px;background:var(--surface-2);color:var(--cyan);border:1px solid var(--border)}
+.ticket-tag{display:inline-block;margin-top:9px;margin-right:6px;font-size:10px;font-weight:700;padding:3px 9px;border-radius:100px;background:var(--surface-2);color:var(--cyan);border:1px solid var(--border)}
+.ticket-tag.timer{color:var(--warn)}
+.ticket-tag.expired{color:var(--danger);border-color:rgba(251,113,133,.35)}
 .ticket-stub{width:104px;flex-shrink:0;border-left:1.5px dashed var(--border-hi);display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:6px;padding:10px;position:relative}
 .ticket-stub::before, .ticket-stub::after{content:'';position:absolute;left:-7px;width:14px;height:14px;border-radius:50%;background:var(--bg)}
 .ticket-stub::before{top:-7px}
@@ -173,16 +157,26 @@ body::after{
 
 .empty-msg{color:var(--text-dim);font-size:13px;text-align:center;padding:52px 10px}
 
-.fab{position:fixed;bottom:22px;right:24px;background:linear-gradient(120deg, var(--blue), var(--violet));color:#06101f;border:none;border-radius:100px;padding:14px 20px;font-size:13.5px;font-weight:700;display:flex;align-items:center;gap:7px;font-family:inherit;box-shadow:0 10px 28px rgba(79,141,253,.4);cursor:pointer;z-index:20;transition:transform .12s}
-.fab:active{transform:scale(.96)}
-
-.bottom-nav{display:none}
-@media(max-width:720px){
-  .rail{display:none}
-  .bottom-nav{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:30;background:rgba(10,14,26,.9);backdrop-filter:blur(18px);border-top:1px solid var(--border);padding:8px 10px calc(8px + env(safe-area-inset-bottom));gap:4px}
-  .bottom-nav .rail-btn{flex:1;flex-direction:column;gap:3px;font-size:10px;height:52px;width:auto;border-radius:12px}
-  .bottom-nav .rail-btn svg{width:19px;height:19px}
-  .main{padding-bottom:96px}
+/* ===== BITTA PASTKI NAVIGATSIYA (mobil ham, desktop ham) ===== */
+.bottom-nav{
+  display:flex;position:fixed;bottom:0;left:0;right:0;z-index:30;
+  background:rgba(10,14,26,.9);backdrop-filter:blur(18px);border-top:1px solid var(--border);
+  padding:8px 10px calc(8px + env(safe-area-inset-bottom));gap:4px;
+  max-width:640px;margin:0 auto;
+}
+.nav-btn{
+  flex:1;flex-direction:column;gap:3px;font-size:10px;height:54px;
+  border-radius:12px;border:1px solid transparent;background:transparent;color:var(--text-dim);
+  cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s;font-family:inherit;font-weight:600;
+}
+.nav-btn svg{width:19px;height:19px}
+.nav-btn.active{background:var(--surface);border-color:var(--border-hi);color:var(--cyan)}
+.nav-btn:not(.active):hover{background:var(--surface);color:var(--text)}
+.nav-btn.danger{color:var(--danger)}
+.rail-badge{position:relative}
+.rail-badge .count{
+  position:absolute;top:2px;right:16px;background:var(--violet);color:#06101f;font-size:9px;font-weight:800;
+  min-width:15px;height:15px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 3px;
 }
 
 .overlay{position:fixed;inset:0;background:rgba(4,7,16,.68);backdrop-filter:blur(3px);display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:.2s;z-index:50}
@@ -194,6 +188,12 @@ body::after{
 .modal-actions{display:flex;gap:10px;margin-top:18px}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 
+.duration-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px}
+.duration-btn{padding:12px 6px;border-radius:12px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-dim);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s;text-align:center}
+.duration-btn .d-sub{display:block;font-size:10px;font-weight:600;color:var(--text-dim);margin-top:2px}
+.duration-btn.active{border-color:var(--blue);color:#eaf1ff;background:linear-gradient(120deg, rgba(79,141,253,.28), rgba(139,123,255,.2))}
+.duration-btn.active .d-sub{color:#bcd6ff}
+
 .upload-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:6px}
 .upload-slot{aspect-ratio:1;border-radius:14px;border:1.5px dashed var(--border-hi);background:var(--surface-2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;position:relative;overflow:hidden;color:var(--text-dim);font-size:11px;font-weight:600;text-align:center;padding:8px}
 .upload-slot.filled{border-style:solid;border-color:var(--ok);color:var(--text)}
@@ -204,7 +204,7 @@ body::after{
 .upload-slot .check{position:absolute;bottom:6px;right:6px;background:var(--ok);color:#06101f;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
 
 .bg-progress{
-  position:fixed;bottom:22px;left:24px;z-index:25;
+  position:fixed;bottom:78px;left:50%;transform:translateX(-50%);z-index:25;
   background:var(--surface-solid);border:1px solid var(--border);border-radius:100px;
   padding:10px 16px 10px 12px;display:flex;align-items:center;gap:9px;
   box-shadow:0 8px 22px rgba(0,0,10,.4);font-size:12.5px;font-weight:600;color:var(--text-dim);
@@ -251,27 +251,6 @@ body::after{
 
 <div id="appScreen">
   <div class="shell">
-    <div class="rail">
-      <div class="rail-logo">📦</div>
-      <button class="rail-btn active" id="navSklad" title="Sklad">
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
-      </button>
-      <button class="rail-btn rail-badge" id="navMening" title="Mening olganlarim">
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.4 14.5 16 10 4 20"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M19 3v6M22 6h-6"/></svg>
-        <span class="count" id="meningCountRail" style="display:none">0</span>
-      </button>
-      <button class="rail-btn" id="navTarix" title="Tarix">
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
-      </button>
-      <div class="rail-spacer"></div>
-      <button class="rail-btn" id="refreshBtn" title="Yangilash">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
-      </button>
-      <button class="rail-btn" id="logoutBtn" title="Chiqish">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
-      </button>
-    </div>
-
     <div class="main">
       <div class="top-bar">
         <div class="greet">Xush kelibsiz, <b id="userName">—</b></div>
@@ -317,27 +296,30 @@ body::after{
         </div>
         <div id="tarixResults"></div>
       </div>
-
-      <button class="fab" id="addBtn">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 5v14M5 12h14"/></svg>
-        Yangi
-      </button>
     </div>
   </div>
 
   <div class="bottom-nav">
-    <button class="rail-btn active" id="navSkladM">
+    <button class="nav-btn active" id="navSklad">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>
       Sklad
     </button>
-    <button class="rail-btn rail-badge" id="navMeningM">
+    <button class="nav-btn rail-badge" id="navMening">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.4 14.5 16 10 4 20"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M19 3v6M22 6h-6"/></svg>
       Mening
-      <span class="count" id="meningCountM" style="display:none">0</span>
+      <span class="count" id="meningCount" style="display:none">0</span>
     </button>
-    <button class="rail-btn" id="navTarixM">
+    <button class="nav-btn" id="navTarix">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
       Tarix
+    </button>
+    <button class="nav-btn" id="addBtn" style="display:none">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+      Yangi
+    </button>
+    <button class="nav-btn danger" id="logoutBtn">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      Chiqish
     </button>
   </div>
 </div>
@@ -365,8 +347,16 @@ body::after{
 <div class="overlay" id="olishOverlay">
   <div class="modal">
     <h2 id="olishTitle">Qurilmani olish</h2>
-    <p class="modal-sub">Talabnoma hujjatini yuklang va manzilni kiriting</p>
+    <p class="modal-sub">Manzil, muddat va talabnoma hujjatini kiriting</p>
     <div class="field"><label>Manzil</label><input type="text" id="olishManzil" placeholder="Masalan: ombor filiali / tashkilot"></div>
+    <div class="field">
+      <label>Muddat (shu vaqt tugagach qurilma "muddati o'tgan" bo'ladi)</label>
+      <div class="duration-grid" id="olishDurationGrid">
+        <button type="button" class="duration-btn" data-hours="24">1 kun<span class="d-sub">24 soat</span></button>
+        <button type="button" class="duration-btn" data-hours="48">2 kun<span class="d-sub">48 soat</span></button>
+        <button type="button" class="duration-btn" data-hours="72">3 kun<span class="d-sub">72 soat</span></button>
+      </div>
+    </div>
     <div class="field">
       <label>Talabnomani yukla</label>
       <div class="upload-grid" style="grid-template-columns:1fr">
@@ -465,8 +455,6 @@ let currentUser = null;
 let skladTumanFilter = 'all';
 
 function normalize(s){ return (s||'').toString().trim().toLowerCase(); }
-// Tuman ustunida "kogon", "Kogon tuman" kabi turli yozilishlar bo'lishi
-// mumkin — buni har doim aniq "buxoro"/"kogon"ga tozalab beradi.
 function normalizeTuman(raw){
   const s = normalize(raw);
   if(s.indexOf('buxoro') > -1) return 'buxoro';
@@ -501,6 +489,32 @@ async function postAction(payload){
   try{ result = await resp.json(); }catch(e){ throw new Error("Server javobini o'qib bo'lmadi"); }
   if(!result.success) throw new Error(result.error || "Noma'lum xatolik");
   return result;
+}
+
+// ============ MUDDAT (TIMER) YORDAMCHI FUNKSIYALARI ============
+// d.OlinganVaqt — ISO timestamp, d.MuddatSoat — tanlangan soat (24/48/72)
+function deviceExpired(d){
+  if(d.expired === true || d.expired === 'true') return true;
+  if(!d.OlinganVaqt || !d.MuddatSoat) return false;
+  const start = new Date(d.OlinganVaqt).getTime();
+  if(isNaN(start)) return false;
+  const deadline = start + Number(d.MuddatSoat) * 3600 * 1000;
+  return Date.now() > deadline;
+}
+function remainingLabel(d){
+  if(!d.OlinganVaqt || !d.MuddatSoat) return '';
+  const start = new Date(d.OlinganVaqt).getTime();
+  if(isNaN(start)) return '';
+  const deadline = start + Number(d.MuddatSoat) * 3600 * 1000;
+  const diffMs = deadline - Date.now();
+  if(diffMs <= 0) return 'Muddati o\'tgan';
+  const hrs = Math.floor(diffMs / 3600000);
+  const mins = Math.floor((diffMs % 3600000) / 60000);
+  if(hrs >= 24){
+    const days = Math.floor(hrs/24), remH = hrs % 24;
+    return 'Qoldi: ' + days + ' kun ' + remH + ' soat';
+  }
+  return 'Qoldi: ' + hrs + ' soat ' + mins + ' daq';
 }
 
 // ============ FON REJIMIDAGI JARAYON KO'RSATKICHI ============
@@ -599,13 +613,12 @@ function enterApp(){
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appScreen').style.display = 'block';
   document.getElementById('userName').textContent = currentUser.ism;
-  // "+ Yangi" (qurilma qo'shish) tugmasi faqat admin uchun ko'rinadi
   document.getElementById('addBtn').style.display = (currentUser.role === 'admin') ? 'flex' : 'none';
-  // Ma'lumot allaqachon initApp() orqali to'liq yuklangan — darhol ko'rsatamiz.
   renderActive();
   updateStats();
-  // Fon rejimida (ko'rinmas holda) yangilab qo'yamiz — foydalanuvchi kutmaydi.
   loadAll().then(()=>{ renderActive(); updateStats(); });
+  // Muddat hisoblagichini har daqiqada yangilab turamiz (faqat "Mening" ochiq bo'lsa).
+  setInterval(()=>{ if(activePanel === 'mening') renderMening(); }, 60000);
 }
 
 async function refreshData(){
@@ -614,7 +627,6 @@ async function refreshData(){
   updateStats();
   toast('Yangilandi', 'success');
 }
-document.getElementById('refreshBtn').addEventListener('click', refreshData);
 document.getElementById('refreshBtnTop').addEventListener('click', refreshData);
 
 function updateStats(){
@@ -622,18 +634,17 @@ function updateStats(){
   const mening = kirim.filter(d=>normalize(d.login)===normalize(currentUser.login)).length;
   document.getElementById('statMening').textContent = mening;
   document.getElementById('statChiqim').textContent = chiqim.length;
-  [document.getElementById('meningCountRail'), document.getElementById('meningCountM')].forEach(el=>{
-    if(mening > 0){ el.style.display='flex'; el.textContent = mening; } else { el.style.display='none'; }
-  });
+  const countEl = document.getElementById('meningCount');
+  if(mening > 0){ countEl.style.display='flex'; countEl.textContent = mening; } else { countEl.style.display='none'; }
 }
 
 const panelSklad = document.getElementById('panelSklad');
 const panelMening = document.getElementById('panelMening');
 const panelTarix = document.getElementById('panelTarix');
 const navBtns = {
-  sklad: [document.getElementById('navSklad'), document.getElementById('navSkladM')],
-  mening: [document.getElementById('navMening'), document.getElementById('navMeningM')],
-  tarix: [document.getElementById('navTarix'), document.getElementById('navTarixM')]
+  sklad: document.getElementById('navSklad'),
+  mening: document.getElementById('navMening'),
+  tarix: document.getElementById('navTarix')
 };
 let activePanel = 'sklad';
 
@@ -645,18 +656,14 @@ function renderActive(){
 
 function showPanel(name){
   activePanel = name;
-  Object.values(navBtns).flat().forEach(b=>b.classList.remove('active'));
-  navBtns[name].forEach(b=>b.classList.add('active'));
+  Object.values(navBtns).forEach(b=>b.classList.remove('active'));
+  navBtns[name].classList.add('active');
   panelSklad.style.display = name==='sklad' ? 'block':'none';
   panelMening.style.display = name==='mening' ? 'block':'none';
   panelTarix.style.display = name==='tarix' ? 'block':'none';
-  document.getElementById('addBtn').style.display = (name==='sklad' && currentUser.role==='admin') ? 'flex':'none';
   renderActive();
 }
-[navBtns.sklad, navBtns.mening, navBtns.tarix].forEach((pair, i)=>{
-  const name = ['sklad','mening','tarix'][i];
-  pair.forEach(b=> b.addEventListener('click', ()=>showPanel(name)));
-});
+Object.keys(navBtns).forEach(name=> navBtns[name].addEventListener('click', ()=>showPanel(name)));
 
 document.querySelectorAll('#skladTumanToggle .tuman-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
@@ -698,13 +705,15 @@ function renderSklad(){
   }).join('');
 }
 
-let olishSeria = null, olishFileData = null;
+let olishSeria = null, olishFileData = null, olishMuddatSoat = null;
 const olishOverlay = document.getElementById('olishOverlay');
 function openOlish(seriaEnc){
   olishSeria = decodeURIComponent(seriaEnc);
   olishFileData = null;
+  olishMuddatSoat = null;
   document.getElementById('olishTitle').textContent = 'Qurilmani olish — ' + olishSeria;
   document.getElementById('olishManzil').value = '';
+  document.querySelectorAll('#olishDurationGrid .duration-btn').forEach(b=>b.classList.remove('active'));
   const slot = document.getElementById('olishSlot');
   slot.classList.remove('filled');
   slot.innerHTML = `<span class="req">Majburiy</span><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 20h16"/></svg><span>Talabnoma rasmini yuklash</span><input type="file" accept="image/*" id="olishFile">`;
@@ -712,6 +721,13 @@ function openOlish(seriaEnc){
   olishOverlay.classList.add('show');
 }
 window.openOlish = openOlish;
+document.querySelectorAll('#olishDurationGrid .duration-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('#olishDurationGrid .duration-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    olishMuddatSoat = btn.dataset.hours;
+  });
+});
 async function onOlishFile(e){
   const file = e.target.files[0];
   if(!file) return;
@@ -727,13 +743,15 @@ olishOverlay.addEventListener('click', e=>{ if(e.target===olishOverlay) olishOve
 document.getElementById('olishConfirm').addEventListener('click', ()=>{
   const manzil = document.getElementById('olishManzil').value.trim();
   if(!manzil){ toast('Manzilni kiriting', 'error'); return; }
+  if(!olishMuddatSoat){ toast('Muddatni tanlang', 'error'); return; }
   if(!olishFileData){ toast('Talabnoma rasmini yuklang', 'error'); return; }
   const seria = olishSeria;
+  const muddat_soat = olishMuddatSoat;
   olishOverlay.classList.remove('show');
 
   // === FON REJIMIDA ===
   bgTaskStart('Biriktirilmoqda: ' + seria);
-  postAction({ action:'olish', seria, login: currentUser.login, ism: currentUser.ism, role: currentUser.role, tuman: currentUser.tuman, manzil, talabnoma_rasm: olishFileData })
+  postAction({ action:'olish', seria, login: currentUser.login, ism: currentUser.ism, role: currentUser.role, tuman: currentUser.tuman, manzil, muddat_soat, talabnoma_rasm: olishFileData })
     .then((res)=>{
       toast('Qurilma sizga biriktirildi', 'success');
       if(res.telegram_debug){ toast('TELEGRAM: ' + res.telegram_debug, 'error'); }
@@ -749,18 +767,26 @@ function renderMening(){
   const list = kirim.filter(d => normalize(d.login) === normalize(currentUser.login));
   const el = document.getElementById('meningResults');
   if(list.length === 0){ el.innerHTML = `<div class="empty-msg">Siz hali hech qanday qurilma olmagansiz</div>`; return; }
-  el.innerHTML = list.slice(0,150).map(d => `
-    <div class="ticket ticket-vertical">
+  const isAdmin = currentUser.role === 'admin';
+  el.innerHTML = list.slice(0,150).map(d => {
+    const expired = deviceExpired(d);
+    const rem = remainingLabel(d);
+    const installDisabled = expired; // muddati o'tgan qurilmani hech kim o'rnata olmaydi
+    const returnDisabled = expired && !isAdmin; // muddati o'tgan bo'lsa faqat admin qaytara oladi
+    return `
+    <div class="ticket ticket-vertical${expired?' expired':''}">
       <div class="ticket-top-actions">
-        <button class="mini-btn primary" onclick="openInstall('${encodeURIComponent(d['S/N'])}')">✅ Tasdiqlash</button>
-        <button class="mini-btn ghost" onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">✕ Bekor qilish</button>
+        <button class="mini-btn primary" ${installDisabled?'disabled':''} onclick="openInstall('${encodeURIComponent(d['S/N'])}')">O'rnatish</button>
+        <button class="mini-btn ghost" ${returnDisabled?'disabled':''} onclick="qaytarish('${encodeURIComponent(d['S/N'])}')">Qaytarish</button>
       </div>
       <div class="ticket-main">
         <div class="ticket-code"><span class="bar">${barcodeSpans(8)}</span>${escapeHtml(d['S/N']||'')}</div>
         <div class="ticket-sub">${escapeHtml(d.marka||'')} · Olingan: ${escapeHtml(d.sana||'')}</div>
         <span class="ticket-tag">${tumanLabel(d.tuman)}</span>
+        ${rem ? `<span class="ticket-tag ${expired?'expired':'timer'}">${rem}</span>` : ''}
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 let qaytarishSeria = null;
@@ -797,7 +823,7 @@ function resetInstallSlots(){
     const required = idx < 2;
     const slot = document.getElementById(id);
     slot.classList.remove('filled');
-    slot.innerHTML = `<span class="${required?'req':'opt'}">${required?'Majburiy':'Ixtiyoriy'}</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 20h16"/></svg><span>${idx+1}-rasm</span><input type="file" accept="image/*">`;
+    slot.innerHTML = `<span class="${required?'req':'opt'}">${required?'Majburiy':'Ixtiyoriy'}</span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4M6 10l6-6 6 6"/><path d="M4 20h16"/></svg><span>${idx+1}-rasm</span><input type="file" accept="image/*"></label>`;
     slot.querySelector('input').addEventListener('change', (e)=>onInstallFile(e, idx, required));
   });
 }
@@ -824,7 +850,6 @@ function openInstall(seriaEnc){
   installOverlay.classList.add('show');
 }
 
-// Masofa maydoniga faqat raqam kiritilishini majburlaymiz
 document.getElementById('installMasofa').addEventListener('input', (e)=>{
   e.target.value = e.target.value.replace(/[^0-9]/g, '');
 });
@@ -875,8 +900,6 @@ function updateCoordsText(lat, lng){
 
 function openMapPicker(){
   mapOverlay.classList.add('show');
-  // Xarita faqat ko'rinadigan bo'lgandan keyin ishga tushirilishi kerak
-  // (Leaflet yashirin konteynerda noto'g'ri o'lchov olishi mumkin).
   setTimeout(()=>{
     const startCenter = pickedLatLng ? [pickedLatLng.lat, pickedLatLng.lng] : DEFAULT_CENTER;
     if(!leafletMapInstance){
@@ -904,7 +927,6 @@ function openMapPicker(){
     }
     updateCoordsText(startCenter[0], startCenter[1]);
 
-    // Agar hali joylashuv tanlanmagan bo'lsa — GPS orqali taxminiy joyni olishga urinamiz
     if(!pickedLatLng && navigator.geolocation){
       document.getElementById('mapCoordsText').textContent = 'GPS orqali aniqlanmoqda...';
       navigator.geolocation.getCurrentPosition(
@@ -939,7 +961,6 @@ tarixSearchClear.addEventListener('click', ()=>{ tarixSearch.value=''; tarixSear
 
 function renderTarix(){
   const q = normalize(tarixSearch.value.trim());
-  // Faqat o'z (joriy xodim) o'rnatgan qurilmalari ko'rsatiladi
   let list = chiqim.filter(d => normalize(d.login) === normalize(currentUser.login)).slice().reverse();
   if(q.length >= 2) list = list.filter(d => normalize(d['S/N']).includes(q));
   const el = document.getElementById('tarixResults');
