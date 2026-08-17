@@ -468,6 +468,18 @@ let currentUser = null;
 let skladTumanFilter = 'all';
 
 function normalize(s){ return (s||'').toString().trim().toLowerCase(); }
+// Tuman ustunida "kogon", "Kogon tuman" kabi turli yozilishlar bo'lishi
+// mumkin — buni har doim aniq "buxoro"/"kogon"ga tozalab beradi.
+function normalizeTuman(raw){
+  const s = normalize(raw);
+  if(s.indexOf('buxoro') > -1) return 'buxoro';
+  if(s.indexOf('kogon') > -1) return 'kogon';
+  return s;
+}
+function tumanLabel(raw){
+  const t = normalizeTuman(raw);
+  return t==='buxoro' ? 'Buxoro' : t==='kogon' ? 'Kogon' : escapeHtml(raw||'');
+}
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s??''; return d.innerHTML; }
 function barcodeSpans(n){ let h=''; for(let i=0;i<n;i++) h+='<span></span>'; return h; }
 
@@ -663,7 +675,7 @@ skladSearchClear.addEventListener('click', ()=>{ skladSearch.value=''; skladSear
 function renderSklad(){
   const q = normalize(skladSearch.value.trim());
   let list = sklad.slice();
-  if(skladTumanFilter !== 'all') list = list.filter(d => normalize(d.tuman) === skladTumanFilter);
+  if(skladTumanFilter !== 'all') list = list.filter(d => normalizeTuman(d.tuman) === skladTumanFilter);
   if(q.length >= 2) list = list.filter(d => normalize(d['S/N']).includes(q));
   const el = document.getElementById('skladResults');
   if(list.length === 0){ el.innerHTML = `<div class="empty-msg">${q ? "Hech narsa topilmadi" : "Skladda qurilma yo'q"}</div>`; return; }
@@ -672,7 +684,7 @@ function renderSklad(){
       <div class="ticket-main">
         <div class="ticket-code"><span class="bar">${barcodeSpans(8)}</span>${escapeHtml(d['S/N']||'')}</div>
         <div class="ticket-sub">${escapeHtml(d.marka||'')}</div>
-        <span class="ticket-tag">${d.tuman==='buxoro'?'Buxoro':d.tuman==='kogon'?'Kogon':escapeHtml(d.tuman||'')}</span>
+        <span class="ticket-tag">${tumanLabel(d.tuman)}</span>
       </div>
       <div class="ticket-stub">
         <button class="stub-btn primary" onclick="openOlish('${encodeURIComponent(d['S/N'])}')">Oldim</button>
@@ -742,7 +754,7 @@ function renderMening(){
       <div class="ticket-main">
         <div class="ticket-code"><span class="bar">${barcodeSpans(8)}</span>${escapeHtml(d['S/N']||'')}</div>
         <div class="ticket-sub">${escapeHtml(d.marka||'')} · Olingan: ${escapeHtml(d.sana||'')}</div>
-        <span class="ticket-tag">${d.tuman==='buxoro'?'Buxoro':d.tuman==='kogon'?'Kogon':escapeHtml(d.tuman||'')}</span>
+        <span class="ticket-tag">${tumanLabel(d.tuman)}</span>
       </div>
     </div>`).join('');
 }
@@ -931,7 +943,7 @@ function renderTarix(){
         <div class="ticket-sub">${escapeHtml(d.marka||'')} · ${escapeHtml(d.manzil||'')}</div>
         <div class="ticket-sub">OLT: ${escapeHtml(d.OLT||'')} · Port: ${escapeHtml(d.Port||'')} · Masofa: ${escapeHtml(d.Masofa||'')}</div>
         ${d.Lokatsiya ? `<div class="ticket-sub">📍 <a href="https://www.google.com/maps?q=${encodeURIComponent(d.Lokatsiya)}" target="_blank" style="color:var(--cyan)">${escapeHtml(d.Lokatsiya)}</a></div>` : ''}
-        <span class="ticket-tag">${d.tuman==='buxoro'?'Buxoro':d.tuman==='kogon'?'Kogon':escapeHtml(d.tuman||'')}</span>
+        <span class="ticket-tag">${tumanLabel(d.tuman)}</span>
       </div>
       <div class="ticket-stub">
         <div class="stub-btn info" style="cursor:default">${escapeHtml(d.Ism||d.login||'')}<br>${escapeHtml(d.sana||'')}</div>
