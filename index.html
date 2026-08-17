@@ -477,7 +477,7 @@ function toast(msg, type){
   el.className = 'toast ' + (type||'success');
   el.textContent = msg;
   wrap.appendChild(el);
-  setTimeout(()=>el.remove(), 3200);
+  setTimeout(()=>el.remove(), type==='error' ? 20000 : 3200);
 }
 
 async function fetchJson(url){
@@ -718,7 +718,10 @@ document.getElementById('olishConfirm').addEventListener('click', ()=>{
   // === FON REJIMIDA ===
   bgTaskStart('Biriktirilmoqda: ' + seria);
   postAction({ action:'olish', seria, login: currentUser.login, ism: currentUser.ism, manzil, talabnoma_rasm: olishFileData })
-    .then(()=>{ toast('Qurilma sizga biriktirildi', 'success'); })
+    .then((res)=>{
+      toast('Qurilma sizga biriktirildi', 'success');
+      if(res.telegram_debug){ toast('TELEGRAM: ' + res.telegram_debug, 'error'); }
+    })
     .catch(err=>{ toast(err.message, 'error'); })
     .finally(()=>{
       bgTaskEnd();
