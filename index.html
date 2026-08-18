@@ -6,9 +6,9 @@
 <title>Sklad · Boshqaruv</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap"></noscript>
+<!-- Leaflet (xarita) endi FAQAT xarita ochilganda dinamik yuklanadi — sahifa tezroq ko'rinishi uchun -->
 <style>
 :root{
   --bg:#070b16;
@@ -1058,8 +1058,39 @@ function updateCoordsText(lat, lng){
   document.getElementById('mapCoordsText').textContent = lat.toFixed(6) + ', ' + lng.toFixed(6);
 }
 
+// ===== LEAFLET NI DANGASA (LAZY) YUKLASH =====
+// Xarita kutubxonasi sahifa boshida EMAS, faqat foydalanuvchi birinchi marta
+// "Joylashuvni belgilash" tugmasini bosganda yuklanadi — shu bilan sahifaning
+// birinchi ko'rinishi tashqi CDN tezligiga bog'liq bo'lmay tezroq chiqadi.
+let leafletLoadPromise = null;
+function ensureLeafletLoaded(){
+  if(window.L) return Promise.resolve();
+  if(leafletLoadPromise) return leafletLoadPromise;
+  leafletLoadPromise = new Promise((resolve, reject)=>{
+    const cssLink = document.createElement('link');
+    cssLink.rel = 'stylesheet';
+    cssLink.href = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css';
+    document.head.appendChild(cssLink);
+
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Xarita kutubxonasini yuklab bo'lmadi. Internetni tekshiring."));
+    document.head.appendChild(script);
+  });
+  return leafletLoadPromise;
+}
+
 function openMapPicker(){
   mapOverlay.classList.add('show');
+  document.getElementById('mapCoordsText').textContent = 'Xarita yuklanmoqda...';
+  ensureLeafletLoaded().then(initLeafletMap).catch(err=>{
+    toast(err.message, 'error');
+    mapOverlay.classList.remove('show');
+  });
+}
+
+function initLeafletMap(){
   setTimeout(()=>{
     const startCenter = pickedLatLng ? [pickedLatLng.lat, pickedLatLng.lng] : DEFAULT_CENTER;
     if(!leafletMapInstance){
