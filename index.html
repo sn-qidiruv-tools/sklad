@@ -47,7 +47,10 @@
   .navlink .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
   .sidebar-foot { margin-top: auto; padding-top: 16px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--border); }
   .topbar { display: none; }
-  main { flex: 1; min-width: 0; padding: 32px 40px 64px; max-width: 1080px; }
+  main { flex: 1; min-width: 0; padding: 0; }
+  .page-container { max-width: 1000px; margin: 0 auto; padding: 36px 48px 72px; }
+  @media (min-width: 1400px) { .page-container { max-width: 1080px; } }
+  .icon-btn { padding: 6px 10px; font-size: 15px; line-height: 1; min-width: 32px; justify-content: center; }
   .page-head { margin-bottom: 28px; }
   .page-head h1 { font-size: 22px; margin: 0 0 4px; font-weight: 700; letter-spacing: -0.01em; }
   .page-head p { margin: 0; color: var(--muted); font-size: 14px; max-width: 62ch; }
@@ -111,13 +114,14 @@
   .danger-zone { border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border)); border-radius: 10px; padding: 18px 20px; margin-top: 28px; }
   .danger-zone h3 { margin: 0 0 6px; font-size: 14px; color: var(--danger); }
   .danger-zone p { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
-  details.order-detail summary { cursor: pointer; color: var(--accent); font-size: 12.5px; font-weight: 600; list-style: none; }
-  details.order-detail summary::-webkit-details-marker { display: none; }
-  details.order-detail summary:before { content: "▸ "; }
-  details.order-detail[open] summary:before { content: "▾ "; }
-  details.order-detail .sub-table { margin-top: 10px; }
-  details.order-detail h4 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .02em; color: var(--muted); margin: 14px 0 6px; font-weight: 600; }
-  details.order-detail h4:first-of-type { margin-top: 8px; }
+  details.detail-toggle summary { cursor: pointer; color: var(--accent); font-size: 12.5px; font-weight: 600; list-style: none; }
+  details.detail-toggle summary::-webkit-details-marker { display: none; }
+  details.detail-toggle summary:before { content: "▸ "; }
+  details.detail-toggle[open] summary:before { content: "▾ "; }
+  details.detail-toggle .sub-table { margin-top: 10px; }
+  details.detail-toggle h4 { font-size: 11.5px; text-transform: uppercase; letter-spacing: .02em; color: var(--muted); margin: 14px 0 6px; font-weight: 600; }
+  details.detail-toggle h4:first-of-type { margin-top: 8px; }
+  table.ledger.mini td { padding: 4px 8px; border-bottom: none; font-size: 12.5px; }
   details.trash-panel { margin-top: 14px; }
   details.trash-panel summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--muted); list-style: none; }
   details.trash-panel summary::-webkit-details-marker { display: none; }
@@ -128,7 +132,7 @@
     .topbar { display: flex; gap: 4px; overflow-x: auto; padding: 10px 12px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20; }
     .topbar button { flex-shrink: 0; padding: 8px 12px; border-radius: 6px; border: none; background: transparent; color: var(--muted); font-weight: 600; font-size: 13px; cursor: pointer; white-space: nowrap; }
     .topbar button.active { background: var(--surface-2); color: var(--ink); }
-    main { padding: 20px 16px 48px; }
+    .page-container { padding: 20px 16px 48px; }
     .summary-strip { grid-template-columns: repeat(2, 1fr); }
     .form-row { grid-template-columns: 1fr; }
   }
@@ -145,8 +149,8 @@
     <nav class="navlist" id="sidebarNav">
       <button class="navlink" data-view="dashboard"><span class="dot"></span>Bosh sahifa</button>
       <button class="navlink" data-view="orders"><span class="dot"></span>Farmoyishlar</button>
-      <button class="navlink" data-view="materials"><span class="dot"></span>Materiallar</button>
       <button class="navlink" data-view="receipts"><span class="dot"></span>Kirimlar</button>
+      <button class="navlink" data-view="materials"><span class="dot"></span>Materiallar</button>
       <button class="navlink" data-view="backup"><span class="dot"></span>Zaxira nusxa</button>
     </nav>
     <div class="sidebar-foot" id="storageStatus">Saqlash rejimi aniqlanmoqda...</div>
@@ -154,8 +158,8 @@
   <div class="topbar" id="topbarNav">
     <button data-view="dashboard">Bosh sahifa</button>
     <button data-view="orders">Farmoyishlar</button>
-    <button data-view="materials">Materiallar</button>
     <button data-view="receipts">Kirimlar</button>
+    <button data-view="materials">Materiallar</button>
     <button data-view="backup">Zaxira nusxa</button>
   </div>
   <main id="mainContent"></main>
@@ -379,6 +383,13 @@
   function receiptMaterialsLabel(receipt) {
     return (receipt.materiallar || []).map(function (m) { return esc(m.nomi) + ": " + fmtQty(m.miqdor, m.birlik); }).join(", ") || "—";
   }
+  function receiptMaterialsDetail(receipt) {
+    var mats = receipt.materiallar || [];
+    if (!mats.length) return "—";
+    var rows = mats.map(function (m) { return '<tr><td>' + esc(m.nomi) + '</td><td class="num right">' + fmtQty(m.miqdor, m.birlik) + '</td></tr>'; }).join("");
+    return '<details class="detail-toggle"><summary>' + mats.length + ' ta material</summary>' +
+      '<table class="ledger mini" style="margin-top:6px;"><tbody>' + rows + '</tbody></table></details>';
+  }
   function orderAvgPct(order) {
     var rows = orderMaterialProgress(order);
     if (!rows.length) return 0;
@@ -428,11 +439,13 @@
       else statusEl.innerHTML = 'Saqlash rejimi aniqlanmoqda...';
     }
     var main = document.getElementById("mainContent");
-    if (state.view === "dashboard") main.innerHTML = renderDashboard();
-    else if (state.view === "orders") main.innerHTML = renderOrders();
-    else if (state.view === "materials") main.innerHTML = renderMaterials();
-    else if (state.view === "receipts") main.innerHTML = renderReceipts();
-    else if (state.view === "backup") main.innerHTML = renderBackup();
+    var body = "";
+    if (state.view === "dashboard") body = renderDashboard();
+    else if (state.view === "orders") body = renderOrders();
+    else if (state.view === "materials") body = renderMaterials();
+    else if (state.view === "receipts") body = renderReceipts();
+    else if (state.view === "backup") body = renderBackup();
+    main.innerHTML = '<div class="page-container">' + body + '</div>';
     bindViewEvents();
   }
 
@@ -473,7 +486,7 @@
       '<table class="ledger"><thead><tr><th>Sana</th><th>Farmoyish</th><th>Hujjat</th><th>Materiallar</th></tr></thead><tbody>' +
       recent.map(function (r) {
         var o = getOrderById(r.farmoyishId);
-        return '<tr><td class="num">' + fmtDate(r.sana) + '</td><td>№' + esc(o ? o.raqam : "?") + '</td><td>' + esc(r.hujjat || "—") + '</td><td>' + receiptMaterialsLabel(r) + '</td></tr>';
+        return '<tr><td class="num">' + fmtDate(r.sana) + '</td><td>№' + esc(o ? o.raqam : "?") + '</td><td>' + esc(r.hujjat || "—") + '</td><td>' + receiptMaterialsDetail(r) + '</td></tr>';
       }).join("") + '</tbody></table>'
       : emptyState("Hali birorta kirim qayd etilmagan.", "Kirim qo'shish", "receipts");
 
@@ -497,7 +510,7 @@
     var list = state.materialTypes.slice().sort(function (a, b) { return a.nomi.localeCompare(b.nomi); });
     var listHtml = list.length ?
       '<table class="ledger"><thead><tr><th>Material nomi</th><th>Birlik</th><th></th></tr></thead><tbody>' +
-      list.map(function (m) { return '<tr><td>' + esc(m.nomi) + '</td><td class="num">' + unitLabel(m.birlik) + '</td><td><button class="btn ghost small" data-delete-material="' + m.id + '">O\'chirish</button></td></tr>'; }).join("") + '</tbody></table>'
+      list.map(function (m) { return '<tr><td>' + esc(m.nomi) + '</td><td class="num">' + unitLabel(m.birlik) + '</td><td><button class="btn ghost small icon-btn" title="O\'chirish" data-delete-material="' + m.id + '">🗑️</button></td></tr>'; }).join("") + '</tbody></table>'
       : emptyState("Hali birorta material turi qo'shilmagan.", "Yuqoridagi shakl orqali qo'shing", "materials");
 
     return pageHead("Materiallar", "Farmoyish va kirim shakllarida tanlash uchun material turlari ro'yxati.") +
@@ -554,7 +567,7 @@
         }).join("");
         var docs = orderReceiptsForOrder(o);
         var docSub = docs.length ? docs.map(function (r) {
-          return '<tr><td>' + esc(r.hujjat || "—") + '</td><td class="num">' + fmtDate(r.sana) + '</td><td>' + receiptMaterialsLabel(r) + '</td></tr>';
+          return '<tr><td>' + esc(r.hujjat || "—") + '</td><td class="num">' + fmtDate(r.sana) + '</td><td>' + receiptMaterialsDetail(r) + '</td></tr>';
         }).join("") : '<tr><td colspan="3" class="muted-text">Hali kirim yo\'q.</td></tr>';
         return '<tr>' +
           '<td class="num">№' + esc(o.raqam) + '</td>' +
@@ -562,10 +575,10 @@
           '<td>' + esc(o.izoh || "—") + '</td>' +
           '<td>' + progressCell(pct, 100) + '</td>' +
           '<td><span class="badge ' + status.cls + '">' + status.label + '</span></td>' +
-          '<td><div class="row-actions"><button class="btn ghost small" data-edit-order="' + o.id + '">Tahrirlash</button><button class="btn ghost small" data-trash-order="' + o.id + '">O\'chirish</button></div></td>' +
+          '<td><div class="row-actions"><button class="btn ghost small icon-btn" title="Tahrirlash" data-edit-order="' + o.id + '">✏️</button><button class="btn ghost small icon-btn" title="Savatga tashlash" data-trash-order="' + o.id + '">🗑️</button></div></td>' +
         '</tr>' +
         '<tr><td colspan="6" style="border-top:none;padding-top:0;">' +
-          '<details class="order-detail"><summary>Batafsil ko\'rish</summary>' +
+          '<details class="detail-toggle"><summary>Batafsil ko\'rish</summary>' +
           '<div class="sub-table">' +
             '<h4>Materiallar bo\'yicha</h4>' +
             '<table class="ledger"><thead><tr><th>Material</th><th class="right">Reja</th><th class="right">Kirim</th><th>Bajarilishi</th></tr></thead><tbody>' + matSub + '</tbody></table>' +
@@ -583,7 +596,7 @@
       trashHtml += '<table class="ledger" style="margin-top:10px;"><thead><tr><th>Farmoyish</th><th>Sana</th><th>Izoh</th><th></th></tr></thead><tbody>' +
         trashed.map(function (o) {
           return '<tr><td class="num">№' + esc(o.raqam) + '</td><td class="num">' + fmtDate(o.sana) + '</td><td>' + esc(o.izoh || "—") + '</td>' +
-            '<td><div class="row-actions"><button class="btn small" data-restore-order="' + o.id + '">Tiklash</button><button class="btn ghost small danger-outline" data-purge-order="' + o.id + '">Butunlay o\'chirish</button></div></td></tr>';
+            '<td><div class="row-actions"><button class="btn small icon-btn" title="Tiklash" data-restore-order="' + o.id + '">♻️</button><button class="btn ghost small icon-btn danger-outline" title="Butunlay o\'chirish" data-purge-order="' + o.id + '">❌</button></div></td></tr>';
         }).join("") + '</tbody></table>';
     } else {
       trashHtml += '<p class="muted-text" style="font-size:13px;margin-top:8px;">Savat bo\'sh.</p>';
@@ -672,8 +685,8 @@
       '<table class="ledger"><thead><tr><th>Sana</th><th>Farmoyish</th><th>Hujjat</th><th>Materiallar</th><th></th></tr></thead><tbody>' +
       filtered.map(function (r) {
         var o = getOrderById(r.farmoyishId);
-        return '<tr><td class="num">' + fmtDate(r.sana) + '</td><td class="num">№' + esc(o ? o.raqam : "?") + (o && o.deleted ? '<span class="sub">(o\'chirilgan)</span>' : '') + '</td><td>' + esc(r.hujjat || "—") + '</td><td>' + receiptMaterialsLabel(r) + '</td>' +
-          '<td><div class="row-actions"><button class="btn ghost small" data-edit-receipt="' + r.id + '">Tahrirlash</button><button class="btn ghost small" data-delete-receipt="' + r.id + '">O\'chirish</button></div></td></tr>';
+        return '<tr><td class="num">' + fmtDate(r.sana) + '</td><td class="num">№' + esc(o ? o.raqam : "?") + (o && o.deleted ? '<span class="sub">(o\'chirilgan)</span>' : '') + '</td><td>' + esc(r.hujjat || "—") + '</td><td>' + receiptMaterialsDetail(r) + '</td>' +
+          '<td><div class="row-actions"><button class="btn ghost small icon-btn" title="Tahrirlash" data-edit-receipt="' + r.id + '">✏️</button><button class="btn ghost small icon-btn" title="O\'chirish" data-delete-receipt="' + r.id + '">🗑️</button></div></td></tr>';
       }).join("") + '</tbody></table>'
       : emptyState("Ushbu filtrga mos kirim topilmadi.", "Filtrlarni tozalash", "receipts");
 
