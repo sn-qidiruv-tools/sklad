@@ -718,7 +718,7 @@
         var pct = orderAvgPct(o);
         var matRows = orderMaterialProgress(o);
         var matSub = matRows.map(function (m) {
-          return '<tr><td>' + esc(m.nomi) + '</td><td class="num right">' + fmtQtyCell(m.reja, m.birlik) + '</td><td class="num right">' + fmtQtyCell(m.kirim, m.birlik) + '</td><td>' + progressCell(m.kirim, m.reja) + '</td></tr>';
+          return '<tr><td>' + esc(m.nomi) + '</td><td class="num right">' + fmtQtyCell(m.reja, m.birlik) + '</td><td class="num right">' + fmtQtyCell(m.kirim, m.birlik) + '</td><td class="num right">' + fmtQtyCell(m.qoldiq, m.birlik) + '</td><td>' + progressCell(m.kirim, m.reja) + '</td></tr>';
         }).join("");
         var docs = orderReceiptsForOrder(o);
         var docSub = docs.length ? docs.map(function (r) {
@@ -736,7 +736,7 @@
           '<details class="detail-toggle"><summary>Batafsil ko\'rish</summary>' +
           '<div class="sub-table">' +
             '<h4>Materiallar bo\'yicha</h4>' +
-            '<table class="ledger"><thead><tr><th>Material</th><th class="right">Reja</th><th class="right">Kirim</th><th>Bajarilishi</th></tr></thead><tbody>' + matSub + '</tbody></table>' +
+            '<table class="ledger"><thead><tr><th>Material</th><th class="right">Reja</th><th class="right">Kirim</th><th class="right">Qoldiq</th><th>Bajarilishi</th></tr></thead><tbody>' + matSub + '</tbody></table>' +
             '<h4>Hujjatlar bo\'yicha</h4>' +
             '<table class="ledger"><thead><tr><th>Hujjat</th><th>Sana</th><th>Kirim qilingan materiallar</th></tr></thead><tbody>' + docSub + '</tbody></table>' +
           '</div>' +
