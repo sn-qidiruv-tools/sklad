@@ -320,6 +320,7 @@
 
   var storageMode = "connecting"; // "connecting" | "shared" | "local"
   var dbHandle = null;
+  var assetsHandle = null;
   var unsubs = [];
 
   var state = {
@@ -343,6 +344,7 @@
   function iconRestore() { return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>'; }
   function iconPurge() { return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>'; }
   function iconPlus() { return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>'; }
+  function iconPdf() { return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>'; }
 
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
@@ -376,7 +378,7 @@
   // ---------- doc <-> object mapping ----------
   function docToOrder(doc) {
     var d = doc.data() || {};
-    return { id: doc.id, raqam: d.raqam || "", sana: d.sana || "", izoh: d.izoh || "", deleted: !!d.deleted, materiallar: Array.isArray(d.materiallar) ? d.materiallar : [] };
+    return { id: doc.id, raqam: d.raqam || "", sana: d.sana || "", izoh: d.izoh || "", deleted: !!d.deleted, hujjatFayl: d.hujjatFayl || null, materiallar: Array.isArray(d.materiallar) ? d.materiallar : [] };
   }
   function docToReceipt(doc) {
     var d = doc.data() || {};
@@ -390,6 +392,7 @@
   // ---------- Storage bootstrap ----------
   function initStorage() {
     if (!window.claude || typeof window.claude.use !== "function") { fallbackToLocal(); return; }
+    window.claude.use("assets").then(function (a) { assetsHandle = a; }).catch(function () { assetsHandle = null; });
     window.claude.use("db").then(function (db) {
       if (!db) { fallbackToLocal(); return; }
       dbHandle = db; storageMode = "shared";
@@ -427,7 +430,9 @@
     return Promise.resolve();
   }
   function hardDeleteOrderCascade(id) {
+    var order = getOrderById(id);
     var relatedIds = state.receipts.filter(function (r) { return r.farmoyishId === id; }).map(function (r) { return r.id; });
+    if (order && order.hujjatFayl && assetsHandle) { assetsHandle.delete(order.hujjatFayl).catch(function () {}); }
     if (storageMode === "shared" && dbHandle) {
       return Promise.all([dbHandle.doc("farmoyishlar/" + id).delete()].concat(relatedIds.map(function (rid) { return dbHandle.doc("kirimlar/" + rid).delete(); })));
     }
@@ -469,6 +474,9 @@
   }
   function wipeAllRecords() {
     if (storageMode === "shared" && dbHandle) {
+      if (assetsHandle) {
+        state.orders.forEach(function (o) { if (o.hujjatFayl) assetsHandle.delete(o.hujjatFayl).catch(function () {}); });
+      }
       var all = state.orders.map(function (o) { return dbHandle.doc("farmoyishlar/" + o.id).delete().catch(function () {}); })
         .concat(state.receipts.map(function (r) { return dbHandle.doc("kirimlar/" + r.id).delete().catch(function () {}); }))
         .concat(state.materialTypes.map(function (m) { return dbHandle.doc("materialTurlari/" + m.id).delete().catch(function () {}); }));
@@ -492,7 +500,7 @@
       };
       wipeAll().then(function () {
         return Promise.all(
-          data.farmoyishlar.map(function (o) { return dbHandle.collection("farmoyishlar").add({ raqam: o.raqam, sana: o.sana, izoh: o.izoh || "", deleted: !!o.deleted, materiallar: o.materiallar || [] }); })
+          data.farmoyishlar.map(function (o) { return dbHandle.collection("farmoyishlar").add({ raqam: o.raqam, sana: o.sana, izoh: o.izoh || "", deleted: !!o.deleted, hujjatFayl: o.hujjatFayl || null, materiallar: o.materiallar || [] }); })
           .concat(data.kirimlar.map(function (r) { return dbHandle.collection("kirimlar").add({ farmoyishId: r.farmoyishId, sana: r.sana, hujjat: r.hujjat || "", deleted: !!r.deleted, materiallar: r.materiallar || [] }); }))
           .concat(materialTurlari.map(function (m) { return dbHandle.collection("materialTurlari").add({ nomi: m.nomi, birlik: m.birlik || "m" }); }))
         );
@@ -695,6 +703,16 @@
             '<div class="form-row" style="grid-template-columns:1fr;">' +
               '<div class="field"><label for="orderIzoh">Izoh (masalan, hudud)</label><input id="orderIzoh" placeholder="masalan: Chilonzor tumani" value="' + esc(meta.izoh) + '"></div>' +
             '</div>' +
+            '<div class="form-row" style="grid-template-columns:1fr;">' +
+              '<div class="field"><label for="orderPdf">Tasdiqlovchi hujjat (muhrlangan PDF)</label>' +
+                (assetsHandle ?
+                  '<input type="file" id="orderPdf" accept="application/pdf">' +
+                  (editing && editing.hujjatFayl ?
+                    '<div class="row-hint" style="margin-top:2px;"><a href="/_blob/' + esc(editing.hujjatFayl) + '" target="_blank" rel="noopener">' + iconPdf() + ' Joriy faylni ko\'rish</a> &nbsp; <label style="display:inline-flex;align-items:center;gap:5px;font-weight:400;"><input type="checkbox" id="orderPdfRemove"> olib tashlash</label></div>'
+                    : '')
+                  : '<div class="row-hint">Fayl biriktirish bu ko\'rinishda mavjud emas (faqat Claude saytida ishlaydi).</div>') +
+              '</div>' +
+            '</div>' +
             '<div class="field" style="margin-bottom:10px;"><label>Demontaj uchun rejalashtirilgan materiallar</label></div>' +
             '<div class="material-rows" id="materialRows"></div>' +
             '<button type="button" class="btn small" id="addMaterialRow">+ Yana material qo\'shish</button>' +
@@ -730,7 +748,9 @@
           '<td>' + esc(o.izoh || "—") + '</td>' +
           '<td>' + progressCell(pct, 100) + '</td>' +
           '<td><span class="badge ' + status.cls + '">' + status.label + '</span></td>' +
-          '<td><div class="row-actions"><button class="btn ghost small icon-btn" title="Ushbu farmoyish uchun kirim qo\'shish" data-quick-receipt="' + o.id + '">' + iconPlus() + '</button><button class="btn ghost small icon-btn" title="Tahrirlash" data-edit-order="' + o.id + '">' + iconPencil() + '</button><button class="btn ghost small icon-btn danger-icon" title="Savatga tashlash" data-trash-order="' + o.id + '">' + iconTrash() + '</button></div></td>' +
+          '<td><div class="row-actions">' +
+            (o.hujjatFayl ? '<a class="btn ghost small icon-btn" title="Tasdiqlovchi PDF-ni ko\'rish" href="/_blob/' + esc(o.hujjatFayl) + '" target="_blank" rel="noopener">' + iconPdf() + '</a>' : '') +
+            '<button class="btn ghost small icon-btn" title="Ushbu farmoyish uchun kirim qo\'shish" data-quick-receipt="' + o.id + '">' + iconPlus() + '</button><button class="btn ghost small icon-btn" title="Tahrirlash" data-edit-order="' + o.id + '">' + iconPencil() + '</button><button class="btn ghost small icon-btn danger-icon" title="Savatga tashlash" data-trash-order="' + o.id + '">' + iconTrash() + '</button></div></td>' +
         '</tr>' +
         '<tr><td colspan="6" style="border-top:none;padding-top:0;">' +
           '<details class="detail-toggle"><summary>Batafsil ko\'rish</summary>' +
@@ -1063,14 +1083,36 @@
             .filter(function (r) { return r.nomi && Number(r.miqdor) > 0; })
             .map(function (r) { var mt = getMaterialTypeByName(r.nomi); return { id: uid(), nomi: r.nomi, miqdor: Number(r.miqdor), birlik: mt ? mt.birlik : "m" }; });
           if (!raqam || !sana || materiallar.length === 0) { showToast("Farmoyish raqami, sana va kamida bitta material kerak."); return; }
-          var data = { raqam: raqam, sana: sana, izoh: izoh, materiallar: materiallar };
-          var task = state.editingOrderId ? updateOrderRecord(state.editingOrderId, data) : addOrderRecord(Object.assign({ deleted: false }, data));
-          task.then(function () {
-            showToast(state.editingOrderId ? "Farmoyish yangilandi." : "Farmoyish №" + raqam + " saqlandi.");
-            state.showOrderForm = false;
-            resetOrderForm();
-            render();
-          }).catch(function () { showToast("Saqlashda xatolik yuz berdi."); });
+
+          var editingOrderNow = state.editingOrderId ? getOrderById(state.editingOrderId) : null;
+          var pdfInput = document.getElementById("orderPdf");
+          var pdfFile = pdfInput && pdfInput.files[0];
+          var removeCheckbox = document.getElementById("orderPdfRemove");
+          var wantsRemove = removeCheckbox && removeCheckbox.checked;
+          var oldAssetId = editingOrderNow ? editingOrderNow.hujjatFayl : null;
+
+          function finalizeSave(hujjatFayl, includeHujjatFayl) {
+            var data = { raqam: raqam, sana: sana, izoh: izoh, materiallar: materiallar };
+            if (includeHujjatFayl) data.hujjatFayl = hujjatFayl;
+            var task = state.editingOrderId ? updateOrderRecord(state.editingOrderId, data) : addOrderRecord(Object.assign({ deleted: false, hujjatFayl: hujjatFayl || null }, data));
+            task.then(function () {
+              if (oldAssetId && (pdfFile || wantsRemove) && assetsHandle) { assetsHandle.delete(oldAssetId).catch(function () {}); }
+              showToast(state.editingOrderId ? "Farmoyish yangilandi." : "Farmoyish №" + raqam + " saqlandi.");
+              state.showOrderForm = false;
+              resetOrderForm();
+              render();
+            }).catch(function () { showToast("Saqlashda xatolik yuz berdi."); });
+          }
+
+          if (pdfFile && assetsHandle) {
+            assetsHandle.upload(pdfFile, { type: "application/pdf" }).then(function (res) {
+              finalizeSave(res.id, true);
+            }).catch(function () { showToast("PDF yuklashda xatolik yuz berdi. Faylni tekshirib qayta urinib ko'ring."); });
+          } else if (wantsRemove) {
+            finalizeSave(null, true);
+          } else {
+            finalizeSave(null, false);
+          }
         });
       }
 
