@@ -102,8 +102,8 @@
   .page-container { max-width: 1000px; margin: 0 auto; padding: 36px 40px 72px; }
   @media (min-width: 1400px) { .page-container { max-width: 1080px; } }
 
-  .icon-btn { padding: 8px; font-size: 15px; line-height: 1; width: 36px; height: 36px; min-width: 36px; justify-content: center; border-radius: 50%; }
-  .icon-btn svg { display: block; }
+  .icon-btn { padding: 9px; font-size: 15px; line-height: 1; width: 40px; height: 40px; min-width: 40px; justify-content: center; border-radius: 50%; transition: transform .12s ease, background .15s ease, color .15s ease; }
+  .icon-btn svg { display: block; width: 17px; height: 17px; }
 
   .page-head { margin-bottom: 26px; }
   .page-head h1 { font-size: 26px; margin: 0 0 4px; font-weight: 700; letter-spacing: -0.02em; }
@@ -133,6 +133,8 @@
   table.ledger tbody tr:last-child td { border-bottom: none; }
   table.ledger tbody tr:hover { background: rgba(120,120,128,0.08); }
   .num { font-family: ui-monospace, 'SF Mono', 'IBM Plex Mono', Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
+  .qty-cell { display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 4px; width: 100%; }
+  .qty-cell .qty-unit { color: var(--muted); font-size: 0.82em; min-width: 30px; text-align: left; }
   .right { text-align: right; }
   .muted-text { color: var(--muted); }
   .sub { display: block; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
@@ -243,6 +245,10 @@
   details.trash-panel summary::-webkit-details-marker { display: none; }
 
   .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .icon-btn:hover { transform: scale(1.15); }
+  .icon-btn:active { transform: scale(1.02); }
+  .btn.danger-icon { color: var(--danger); }
+  .btn.danger-icon:hover { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
 
   @media (max-width: 820px) {
     .shell { flex-direction: column; }
@@ -289,6 +295,7 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 (function () {
   "use strict";
@@ -333,6 +340,7 @@
     return Object.keys(UNITS).map(function (u) { return '<option value="' + u + '"' + (u === selected ? " selected" : "") + '>' + UNITS[u] + '</option>'; }).join("");
   }
   function fmtQty(n, unit) { return fmtNum(n) + " " + unitLabel(unit); }
+  function fmtQtyCell(n, unit) { return '<span class="qty-cell"><span>' + fmtNum(n) + '</span><span class="qty-unit">' + unitLabel(unit) + '</span></span>'; }
   function esc(str) { return String(str == null ? "" : str).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function fmtNum(n) { n = Number(n) || 0; return n.toLocaleString("uz-UZ", { maximumFractionDigits: 1 }); }
   function fmtDate(iso) {
@@ -514,7 +522,7 @@
   function receiptMaterialsDetail(receipt) {
     var mats = receipt.materiallar || [];
     if (!mats.length) return "—";
-    var rows = mats.map(function (m) { return '<tr><td>' + esc(m.nomi) + '</td><td class="num right">' + fmtQty(m.miqdor, m.birlik) + '</td></tr>'; }).join("");
+    var rows = mats.map(function (m) { return '<tr><td>' + esc(m.nomi) + '</td><td class="num right">' + fmtQtyCell(m.miqdor, m.birlik) + '</td></tr>'; }).join("");
     return '<details class="detail-toggle"><summary>' + mats.length + ' ta material</summary>' +
       '<table class="ledger mini" style="margin-top:6px;"><tbody>' + rows + '</tbody></table></details>';
   }
@@ -605,7 +613,7 @@
     var materialBlock = byMaterial.length ?
       '<table class="ledger"><thead><tr><th>Material turi</th><th class="right">Reja</th><th class="right">Kirim</th><th class="right">Qoldiq</th><th>Bajarilishi</th></tr></thead><tbody>' +
       byMaterial.map(function (m) {
-        return '<tr><td>' + esc(m.nomi) + '</td><td class="num right">' + fmtQty(m.reja, m.birlik) + '</td><td class="num right">' + fmtQty(m.kirim, m.birlik) + '</td><td class="num right">' + fmtQty(m.reja - m.kirim, m.birlik) + '</td><td>' + progressCell(m.kirim, m.reja) + '</td></tr>';
+        return '<tr><td>' + esc(m.nomi) + '</td><td class="num right">' + fmtQtyCell(m.reja, m.birlik) + '</td><td class="num right">' + fmtQtyCell(m.kirim, m.birlik) + '</td><td class="num right">' + fmtQtyCell(m.reja - m.kirim, m.birlik) + '</td><td>' + progressCell(m.kirim, m.reja) + '</td></tr>';
       }).join("") + '</tbody></table>'
       : emptyState("Hali material bo'yicha ma'lumot yo'q.", "Birinchi farmoyishni qo'shing", "orders");
 
@@ -638,7 +646,7 @@
     var list = state.materialTypes.slice().sort(function (a, b) { return a.nomi.localeCompare(b.nomi); });
     var listHtml = list.length ?
       '<table class="ledger"><thead><tr><th>Material nomi</th><th>Birlik</th><th></th></tr></thead><tbody>' +
-      list.map(function (m) { return '<tr><td>' + esc(m.nomi) + '</td><td class="num">' + unitLabel(m.birlik) + '</td><td><button class="btn ghost small icon-btn" title="O\'chirish" data-delete-material="' + m.id + '">' + iconTrash() + '</button></td></tr>'; }).join("") + '</tbody></table>'
+      list.map(function (m) { return '<tr><td>' + esc(m.nomi) + '</td><td class="num">' + unitLabel(m.birlik) + '</td><td><button class="btn ghost small icon-btn danger-icon" title="O\'chirish" data-delete-material="' + m.id + '">' + iconTrash() + '</button></td></tr>'; }).join("") + '</tbody></table>'
       : emptyState("Hali birorta material turi qo'shilmagan.", "Yuqoridagi shakl orqali qo'shing", "materials");
 
     return pageHead("Materiallar", "Farmoyish va kirim shakllarida tanlash uchun material turlari ro'yxati.") +
@@ -691,7 +699,7 @@
         var pct = orderAvgPct(o);
         var matRows = orderMaterialProgress(o);
         var matSub = matRows.map(function (m) {
-          return '<tr><td>' + esc(m.nomi) + '</td><td class="num right">' + fmtQty(m.reja, m.birlik) + '</td><td class="num right">' + fmtQty(m.kirim, m.birlik) + '</td><td>' + progressCell(m.kirim, m.reja) + '</td></tr>';
+          return '<tr><td>' + esc(m.nomi) + '</td><td class="num right">' + fmtQtyCell(m.reja, m.birlik) + '</td><td class="num right">' + fmtQtyCell(m.kirim, m.birlik) + '</td><td>' + progressCell(m.kirim, m.reja) + '</td></tr>';
         }).join("");
         var docs = orderReceiptsForOrder(o);
         var docSub = docs.length ? docs.map(function (r) {
@@ -703,7 +711,7 @@
           '<td>' + esc(o.izoh || "—") + '</td>' +
           '<td>' + progressCell(pct, 100) + '</td>' +
           '<td><span class="badge ' + status.cls + '">' + status.label + '</span></td>' +
-          '<td><div class="row-actions"><button class="btn ghost small icon-btn" title="Ushbu farmoyish uchun kirim qo\'shish" data-quick-receipt="' + o.id + '">' + iconPlus() + '</button><button class="btn ghost small icon-btn" title="Tahrirlash" data-edit-order="' + o.id + '">' + iconPencil() + '</button><button class="btn ghost small icon-btn" title="Savatga tashlash" data-trash-order="' + o.id + '">' + iconTrash() + '</button></div></td>' +
+          '<td><div class="row-actions"><button class="btn ghost small icon-btn" title="Ushbu farmoyish uchun kirim qo\'shish" data-quick-receipt="' + o.id + '">' + iconPlus() + '</button><button class="btn ghost small icon-btn" title="Tahrirlash" data-edit-order="' + o.id + '">' + iconPencil() + '</button><button class="btn ghost small icon-btn danger-icon" title="Savatga tashlash" data-trash-order="' + o.id + '">' + iconTrash() + '</button></div></td>' +
         '</tr>' +
         '<tr><td colspan="6" style="border-top:none;padding-top:0;">' +
           '<details class="detail-toggle"><summary>Batafsil ko\'rish</summary>' +
@@ -823,7 +831,7 @@
       filtered.map(function (r) {
         var o = getOrderById(r.farmoyishId);
         return '<tr><td class="num">' + fmtDate(r.sana) + '</td><td class="num">№' + esc(o ? o.raqam : "?") + (o && o.deleted ? '<span class="sub">(o\'chirilgan)</span>' : '') + '</td><td>' + esc(r.hujjat || "—") + '</td><td>' + receiptMaterialsDetail(r) + '</td>' +
-          '<td><div class="row-actions"><button class="btn ghost small icon-btn" title="Tahrirlash" data-edit-receipt="' + r.id + '">' + iconPencil() + '</button><button class="btn ghost small icon-btn" title="O\'chirish" data-delete-receipt="' + r.id + '">' + iconTrash() + '</button></div></td></tr>';
+          '<td><div class="row-actions"><button class="btn ghost small icon-btn" title="Tahrirlash" data-edit-receipt="' + r.id + '">' + iconPencil() + '</button><button class="btn ghost small icon-btn danger-icon" title="O\'chirish" data-delete-receipt="' + r.id + '">' + iconTrash() + '</button></div></td></tr>';
       }).join("") + '</tbody></table>'
       : emptyState("Ushbu filtrga mos kirim topilmadi.", "Filtrlarni tozalash", "receipts");
 
@@ -875,8 +883,8 @@
           '<button class="btn" id="importBtn">Zaxiradan tiklash</button>' +
           '<input type="file" id="importFile" accept="application/json" style="display:none;">' +
         '</div></div>' +
-      '<div class="card"><p style="margin-top:0;color:var(--muted);font-size:13.5px;"><strong style="color:var(--ink);">Google Sheets uchun.</strong> Kirimlarni jadval (.csv) qilib yuklab oling, so\'ng Google Sheets\'da "Fayl → Import" orqali oching.</p>' +
-        '<div class="backup-actions"><button class="btn" id="exportCsvBtn">Kirimlarni jadval (.csv) qilib olish</button></div></div>' +
+      '<div class="card"><p style="margin-top:0;color:var(--muted);font-size:13.5px;"><strong style="color:var(--ink);">Excel uchun.</strong> Barcha ma\'lumotlarni Excel (.xlsx) fayl qilib yuklab oling — ichida "Farmoyishlar" va "Kirimlar" nomli ikkita alohida varaq bo\'ladi. Faylni Excel\'da yoki Google Sheets\'da to\'g\'ridan-to\'g\'ri ochish mumkin.</p>' +
+        '<div class="backup-actions"><button class="btn" id="exportExcelBtn">Excel (.xlsx) qilib yuklab olish</button></div></div>' +
       '<div class="danger-zone"><h3>Barcha ma\'lumotni o\'chirish</h3><p>Bu amal savatdagilar bilan birga barchasini butunlay o\'chiradi. Oldin zaxira nusxa oling.</p>' +
         '<button class="btn danger-outline" id="wipeBtn">Hammasini o\'chirish</button></div>';
     return pageHead("Zaxira nusxa", "Ma'lumotlaringizni saqlab qo'ying yoki boshqa dasturga ko'chiring.") + body;
@@ -902,18 +910,37 @@
     triggerDownload(blob, "kabel-ombor-zaxira-" + timestampForFile() + ".json");
     showToast("Zaxira nusxa yuklab olindi.");
   }
-  function doExportCsv() {
-    var header = ["Sana", "Farmoyish", "Hujjat", "Material", "Miqdor", "Birlik"];
-    var rows = [];
+  function doExportExcel() {
+    if (typeof XLSX === "undefined") { showToast("Excel kutubxonasi yuklanmadi. Internetni tekshirib, sahifani yangilang."); return; }
+
+    var orderRows = [["Farmoyish", "Sana", "Izoh", "Material", "Reja", "Birlik", "Kirim", "Qoldiq", "Holat"]];
+    activeOrders().slice().sort(function (a, b) { return (a.sana || "").localeCompare(b.sana || ""); }).forEach(function (o) {
+      var progress = orderMaterialProgress(o);
+      var status = orderStatus(o).label;
+      if (!progress.length) {
+        orderRows.push(["№" + o.raqam, fmtDate(o.sana), o.izoh || "", "", "", "", "", "", status]);
+      } else {
+        progress.forEach(function (p) {
+          orderRows.push(["№" + o.raqam, fmtDate(o.sana), o.izoh || "", p.nomi, p.reja, unitLabel(p.birlik), p.kirim, p.qoldiq, status]);
+        });
+      }
+    });
+
+    var receiptRows = [["Sana", "Farmoyish", "Hujjat", "Material", "Miqdor", "Birlik"]];
     state.receipts.slice().sort(function (a, b) { return a.sana.localeCompare(b.sana); }).forEach(function (r) {
       var o = getOrderById(r.farmoyishId);
-      (r.materiallar || []).forEach(function (m) { rows.push([fmtDate(r.sana), "№" + (o ? o.raqam : "?"), r.hujjat || "", m.nomi, m.miqdor, unitLabel(m.birlik)]); });
+      (r.materiallar || []).forEach(function (m) { receiptRows.push([fmtDate(r.sana), "№" + (o ? o.raqam : "?"), r.hujjat || "", m.nomi, m.miqdor, unitLabel(m.birlik)]); });
     });
-    var csvEscape = function (v) { var s = String(v == null ? "" : v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-    var csv = [header].concat(rows).map(function (row) { return row.map(csvEscape).join(","); }).join("\r\n");
-    var blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-    triggerDownload(blob, "kirimlar-" + timestampForFile() + ".csv");
-    showToast("CSV fayl yuklab olindi.");
+
+    var wb = XLSX.utils.book_new();
+    var wsOrders = XLSX.utils.aoa_to_sheet(orderRows);
+    var wsReceipts = XLSX.utils.aoa_to_sheet(receiptRows);
+    wsOrders["!cols"] = [{ wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 18 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 14 }];
+    wsReceipts["!cols"] = [{ wch: 12 }, { wch: 10 }, { wch: 20 }, { wch: 18 }, { wch: 10 }, { wch: 8 }];
+    XLSX.utils.book_append_sheet(wb, wsOrders, "Farmoyishlar");
+    XLSX.utils.book_append_sheet(wb, wsReceipts, "Kirimlar");
+    XLSX.writeFile(wb, "kabel-ombor-" + timestampForFile() + ".xlsx");
+    showToast("Excel fayl yuklab olindi.");
   }
   function doImport(file) {
     var reader = new FileReader();
@@ -1161,7 +1188,7 @@
 
     if (state.view === "backup") {
       document.getElementById("exportBtn").addEventListener("click", doExport);
-      document.getElementById("exportCsvBtn").addEventListener("click", doExportCsv);
+      document.getElementById("exportExcelBtn").addEventListener("click", doExportExcel);
       var importBtn = document.getElementById("importBtn"), importFile = document.getElementById("importFile");
       importBtn.addEventListener("click", function () { importFile.click(); });
       importFile.addEventListener("change", function () {
