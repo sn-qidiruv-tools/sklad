@@ -172,7 +172,18 @@
   .field input:focus, .field select:focus { background: var(--glass-strong); }
 
   .material-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
-  .material-row { display: grid; grid-template-columns: 1fr 110px 32px; gap: 8px; align-items: center; }
+  .material-row {
+    display: grid; grid-template-columns: 20px 1fr 110px 32px; gap: 8px; align-items: center;
+    padding: 6px; border-radius: 12px; transition: transform .16s cubic-bezier(.34,1.56,.64,1), box-shadow .16s ease, background .16s ease;
+    position: relative;
+  }
+  .material-row:hover {
+    transform: scale(1.035) translateY(-1px);
+    background: var(--glass-strong);
+    box-shadow: var(--shadow-lg);
+    z-index: 2;
+  }
+  .row-num { font-size: 12px; color: var(--muted); text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
   .material-row input, .material-row select { padding: 9px 11px; border: 1px solid var(--hairline); border-radius: 12px; background: rgba(120,120,128,0.08); color: var(--ink); }
   .row-hint { font-size: 11px; color: var(--muted); grid-column: 1 / -1; margin-top: -4px; }
   .row-remove {
@@ -319,6 +330,7 @@
     orderFormMeta: { raqam: "", sana: "", izoh: "" },
     orderFormRows: [{ nomi: "", miqdor: "" }],
     showTrash: false,
+    orderSearch: "",
     showReceiptForm: false,
     editingReceiptId: null,
     receiptFormMeta: { farmoyishId: "", sana: "", hujjat: "" },
@@ -368,7 +380,7 @@
   }
   function docToReceipt(doc) {
     var d = doc.data() || {};
-    return { id: doc.id, farmoyishId: d.farmoyishId || "", sana: d.sana || "", hujjat: d.hujjat || "", materiallar: Array.isArray(d.materiallar) ? d.materiallar : [] };
+    return { id: doc.id, farmoyishId: d.farmoyishId || "", sana: d.sana || "", hujjat: d.hujjat || "", deleted: !!d.deleted, materiallar: Array.isArray(d.materiallar) ? d.materiallar : [] };
   }
   function docToMaterialType(doc) {
     var d = doc.data() || {};
@@ -437,7 +449,7 @@
     saveLocal(RECEIPTS_KEY, state.receipts);
     return Promise.resolve();
   }
-  function deleteReceiptRecord(id) {
+  function hardDeleteReceipt(id) {
     if (storageMode === "shared" && dbHandle) return dbHandle.doc("kirimlar/" + id).delete();
     state.receipts = state.receipts.filter(function (r) { return r.id !== id; });
     saveLocal(RECEIPTS_KEY, state.receipts);
@@ -481,7 +493,7 @@
       wipeAll().then(function () {
         return Promise.all(
           data.farmoyishlar.map(function (o) { return dbHandle.collection("farmoyishlar").add({ raqam: o.raqam, sana: o.sana, izoh: o.izoh || "", deleted: !!o.deleted, materiallar: o.materiallar || [] }); })
-          .concat(data.kirimlar.map(function (r) { return dbHandle.collection("kirimlar").add({ farmoyishId: r.farmoyishId, sana: r.sana, hujjat: r.hujjat || "", materiallar: r.materiallar || [] }); }))
+          .concat(data.kirimlar.map(function (r) { return dbHandle.collection("kirimlar").add({ farmoyishId: r.farmoyishId, sana: r.sana, hujjat: r.hujjat || "", deleted: !!r.deleted, materiallar: r.materiallar || [] }); }))
           .concat(materialTurlari.map(function (m) { return dbHandle.collection("materialTurlari").add({ nomi: m.nomi, birlik: m.birlik || "m" }); }))
         );
       }).then(function () { showToast("Ma'lumotlar muvaffaqiyatli tiklandi."); setView("dashboard"); })
@@ -499,13 +511,15 @@
   // ---------- Derived data ----------
   function activeOrders() { return state.orders.filter(function (o) { return !o.deleted; }); }
   function trashedOrders() { return state.orders.filter(function (o) { return o.deleted; }); }
+  function activeReceipts() { return state.receipts.filter(function (r) { return !r.deleted; }); }
+  function trashedReceipts() { return state.receipts.filter(function (r) { return r.deleted; }); }
   function getOrderById(id) { return state.orders.find(function (o) { return o.id === id; }); }
   function getMaterialTypeByName(nomi) { return state.materialTypes.find(function (m) { return m.nomi === nomi; }); }
 
   // Per-material plan/received for one order. excludeReceiptId lets an edit-in-progress
   // ignore its own prior contribution when computing what's still available.
   function orderMaterialProgress(order, excludeReceiptId) {
-    var receiptsForOrder = state.receipts.filter(function (r) { return r.farmoyishId === order.id && r.id !== excludeReceiptId; });
+    var receiptsForOrder = state.receipts.filter(function (r) { return r.farmoyishId === order.id && !r.deleted && r.id !== excludeReceiptId; });
     return (order.materiallar || []).map(function (m) {
       var kirim = receiptsForOrder.reduce(function (s, r) {
         return s + (r.materiallar || []).filter(function (x) { return x.nomi === m.nomi; }).reduce(function (s2, x) { return s2 + (Number(x.miqdor) || 0); }, 0);
@@ -514,7 +528,7 @@
     });
   }
   function orderReceiptsForOrder(order) {
-    return state.receipts.filter(function (r) { return r.farmoyishId === order.id; }).sort(function (a, b) { return b.sana.localeCompare(a.sana); });
+    return activeReceipts().filter(function (r) { return r.farmoyishId === order.id; }).sort(function (a, b) { return b.sana.localeCompare(a.sana); });
   }
   function receiptMaterialsLabel(receipt) {
     return (receipt.materiallar || []).map(function (m) { return esc(m.nomi) + ": " + fmtQty(m.miqdor, m.birlik); }).join(", ") || "—";
@@ -550,7 +564,7 @@
         map[m.nomi].reja += Number(m.miqdor) || 0;
       });
     });
-    state.receipts.forEach(function (r) {
+    activeReceipts().forEach(function (r) {
       var order = getOrderById(r.farmoyishId);
       if (order && order.deleted) return;
       (r.materiallar || []).forEach(function (m) {
@@ -617,12 +631,12 @@
       }).join("") + '</tbody></table>'
       : emptyState("Hali material bo'yicha ma'lumot yo'q.", "Birinchi farmoyishni qo'shing", "orders");
 
-    var recent = state.receipts.slice().sort(function (a, b) { return b.sana.localeCompare(a.sana); }).slice(0, 8);
+    var recent = activeReceipts().slice().sort(function (a, b) { return b.sana.localeCompare(a.sana); }).slice(0, 8);
     var recentBlock = recent.length ?
       '<table class="ledger"><thead><tr><th>Sana</th><th>Farmoyish</th><th>Hujjat</th><th>Materiallar</th></tr></thead><tbody>' +
       recent.map(function (r) {
         var o = getOrderById(r.farmoyishId);
-        return '<tr><td class="num">' + fmtDate(r.sana) + '</td><td>№' + esc(o ? o.raqam : "?") + '</td><td>' + esc(r.hujjat || "—") + '</td><td>' + receiptMaterialsDetail(r) + '</td></tr>';
+        return '<tr><td class="num">' + fmtDate(r.sana) + '</td><td class="num"><strong>№' + esc(o ? o.raqam : "?") + '</strong></td><td>' + esc(r.hujjat || "—") + '</td><td>' + receiptMaterialsDetail(r) + '</td></tr>';
       }).join("") + '</tbody></table>'
       : emptyState("Hali birorta kirim qayd etilmagan.", "Kirim qo'shish", "receipts");
 
@@ -691,7 +705,12 @@
       }
     }
 
-    var orders = activeOrders().sort(function (a, b) { return (b.sana || "").localeCompare(a.sana || ""); });
+    var q = state.orderSearch.trim().toLowerCase();
+    var orders = activeOrders().filter(function (o) {
+      if (!q) return true;
+      return (o.raqam || "").toLowerCase().indexOf(q) > -1 || (o.izoh || "").toLowerCase().indexOf(q) > -1;
+    }).sort(function (a, b) { return (b.sana || "").localeCompare(a.sana || ""); });
+    var searchHtml = '<div class="filters"><input type="text" id="orderSearch" placeholder="Farmoyish raqami yoki izoh bo\'yicha qidirish..." value="' + esc(state.orderSearch) + '" style="min-width:260px;"></div>';
     var listHtml = orders.length ?
       '<table class="ledger"><thead><tr><th>Farmoyish</th><th>Sana</th><th>Izoh</th><th>Bajarilishi</th><th>Holat</th><th></th></tr></thead><tbody>' +
       orders.map(function (o) {
@@ -706,7 +725,7 @@
           return '<tr><td>' + esc(r.hujjat || "—") + '</td><td class="num">' + fmtDate(r.sana) + '</td><td>' + receiptMaterialsDetail(r) + '</td></tr>';
         }).join("") : '<tr><td colspan="3" class="muted-text">Hali kirim yo\'q.</td></tr>';
         return '<tr>' +
-          '<td class="num">№' + esc(o.raqam) + '</td>' +
+          '<td class="num"><strong>№' + esc(o.raqam) + '</strong></td>' +
           '<td class="num">' + fmtDate(o.sana) + '</td>' +
           '<td>' + esc(o.izoh || "—") + '</td>' +
           '<td>' + progressCell(pct, 100) + '</td>' +
@@ -724,7 +743,7 @@
           '</details>' +
         '</td></tr>';
       }).join("") + '</tbody></table>'
-      : emptyState("Hali birorta farmoyish kiritilmagan.", "Yuqoridagi tugma orqali qo'shing", "orders");
+      : (q ? '<div class="empty">Qidiruvga mos farmoyish topilmadi.</div>' : emptyState("Hali birorta farmoyish kiritilmagan.", "Yuqoridagi tugma orqali qo'shing", "orders"));
 
     var trashed = trashedOrders();
     var trashHtml = '<details class="trash-panel"><summary>🗑 Savat (' + trashed.length + ')</summary>';
@@ -741,7 +760,7 @@
 
     return pageHead("Farmoyishlar", "Har bir farmoyishda demontaj qilinadigan material turlari va miqdorini kiriting.") +
       toggleBtn + formHtml +
-      block("Barcha farmoyishlar", orders.length + " ta", listHtml + trashHtml);
+      block("Barcha farmoyishlar", orders.length + " ta", searchHtml + listHtml + trashHtml);
   }
 
   function renderMaterialRows() {
@@ -753,6 +772,7 @@
         return '<option value="' + esc(m.nomi) + '"' + (row.nomi === m.nomi ? " selected" : "") + '>' + esc(m.nomi) + ' (' + unitLabel(m.birlik) + ')</option>';
       }).join("");
       return '<div class="material-row">' +
+        '<span class="row-num">' + (i + 1) + '.</span>' +
         '<select data-row-field="nomi" data-row-index="' + i + '">' + optHtml + '</select>' +
         '<input type="number" min="0" step="0.1" placeholder="Miqdor" class="mono" value="' + esc(row.miqdor) + '" data-row-field="miqdor" data-row-index="' + i + '">' +
         '<button type="button" class="row-remove" data-remove-row="' + i + '" ' + (state.orderFormRows.length <= 1 ? "disabled" : "") + '>&times;</button>' +
@@ -819,7 +839,7 @@
         '<button class="btn small ghost" id="clearFilters">Tozalash</button>' +
       '</div>';
 
-    var filtered = state.receipts.filter(function (r) {
+    var filtered = activeReceipts().filter(function (r) {
       if (state.receiptFilter.orderId && r.farmoyishId !== state.receiptFilter.orderId) return false;
       if (state.receiptFilter.from && r.sana < state.receiptFilter.from) return false;
       if (state.receiptFilter.to && r.sana > state.receiptFilter.to) return false;
@@ -830,14 +850,28 @@
       '<table class="ledger"><thead><tr><th>Sana</th><th>Farmoyish</th><th>Hujjat</th><th>Materiallar</th><th></th></tr></thead><tbody>' +
       filtered.map(function (r) {
         var o = getOrderById(r.farmoyishId);
-        return '<tr><td class="num">' + fmtDate(r.sana) + '</td><td class="num">№' + esc(o ? o.raqam : "?") + (o && o.deleted ? '<span class="sub">(o\'chirilgan)</span>' : '') + '</td><td>' + esc(r.hujjat || "—") + '</td><td>' + receiptMaterialsDetail(r) + '</td>' +
-          '<td><div class="row-actions"><button class="btn ghost small icon-btn" title="Tahrirlash" data-edit-receipt="' + r.id + '">' + iconPencil() + '</button><button class="btn ghost small icon-btn danger-icon" title="O\'chirish" data-delete-receipt="' + r.id + '">' + iconTrash() + '</button></div></td></tr>';
+        return '<tr><td class="num">' + fmtDate(r.sana) + '</td><td class="num"><strong>№' + esc(o ? o.raqam : "?") + '</strong>' + (o && o.deleted ? '<span class="sub">(o\'chirilgan)</span>' : '') + '</td><td>' + esc(r.hujjat || "—") + '</td><td>' + receiptMaterialsDetail(r) + '</td>' +
+          '<td><div class="row-actions"><button class="btn ghost small icon-btn" title="Tahrirlash" data-edit-receipt="' + r.id + '">' + iconPencil() + '</button><button class="btn ghost small icon-btn danger-icon" title="Savatga tashlash" data-trash-receipt="' + r.id + '">' + iconTrash() + '</button></div></td></tr>';
       }).join("") + '</tbody></table>'
       : emptyState("Ushbu filtrga mos kirim topilmadi.", "Filtrlarni tozalash", "receipts");
 
+    var trashedR = trashedReceipts();
+    var trashHtml = '<details class="trash-panel"><summary>🗑 Savat (' + trashedR.length + ')</summary>';
+    if (trashedR.length) {
+      trashHtml += '<table class="ledger" style="margin-top:10px;"><thead><tr><th>Sana</th><th>Farmoyish</th><th>Hujjat</th><th>Materiallar</th><th></th></tr></thead><tbody>' +
+        trashedR.map(function (r) {
+          var o = getOrderById(r.farmoyishId);
+          return '<tr><td class="num">' + fmtDate(r.sana) + '</td><td class="num"><strong>№' + esc(o ? o.raqam : "?") + '</strong></td><td>' + esc(r.hujjat || "—") + '</td><td>' + receiptMaterialsDetail(r) + '</td>' +
+            '<td><div class="row-actions"><button class="btn small icon-btn" title="Tiklash" data-restore-receipt="' + r.id + '">' + iconRestore() + '</button><button class="btn ghost small icon-btn danger-outline" title="Butunlay o\'chirish" data-purge-receipt="' + r.id + '">' + iconPurge() + '</button></div></td></tr>';
+        }).join("") + '</tbody></table>';
+    } else {
+      trashHtml += '<p class="muted-text" style="font-size:13px;margin-top:8px;">Savat bo\'sh.</p>';
+    }
+    trashHtml += '</details>';
+
     return pageHead("Kirimlar", "Demontaj qilingan material omborga kirim qilinganda shu yerga qayd eting. Har bir hujjat bitta yozuv sifatida ko'rinadi.") +
       toggleBtn + formHtml +
-      block("Kirimlar ro'yxati", filtered.length + " ta hujjat", filterHtml + listHtml);
+      block("Kirimlar ro'yxati", filtered.length + " ta hujjat", filterHtml + listHtml + trashHtml);
   }
 
   function renderReceiptRows() {
@@ -860,6 +894,7 @@
       var selected = progress.find(function (p) { return p.nomi === row.materialNomi; });
       var hint = selected ? '<div class="row-hint">Rejadagi qoldiq: ' + fmtQty(selected.qoldiq, selected.birlik) + '</div>' : "";
       return '<div class="material-row">' +
+        '<span class="row-num">' + (i + 1) + '.</span>' +
         '<select data-rrow-field="materialNomi" data-rrow-index="' + i + '">' + optHtml + '</select>' +
         '<input type="number" min="0" step="0.1" placeholder="Miqdor" class="mono" value="' + esc(row.miqdor) + '" data-rrow-field="miqdor" data-rrow-index="' + i + '">' +
         '<button type="button" class="row-remove" data-remove-rrow="' + i + '" ' + (state.receiptFormRows.length <= 1 ? "disabled" : "") + '>&times;</button>' +
@@ -927,7 +962,7 @@
     });
 
     var receiptRows = [["Sana", "Farmoyish", "Hujjat", "Material", "Miqdor", "Birlik"]];
-    state.receipts.slice().sort(function (a, b) { return a.sana.localeCompare(b.sana); }).forEach(function (r) {
+    activeReceipts().slice().sort(function (a, b) { return a.sana.localeCompare(b.sana); }).forEach(function (r) {
       var o = getOrderById(r.farmoyishId);
       (r.materiallar || []).forEach(function (m) { receiptRows.push([fmtDate(r.sana), "№" + (o ? o.raqam : "?"), r.hujjat || "", m.nomi, m.miqdor, unitLabel(m.birlik)]); });
     });
@@ -980,6 +1015,15 @@
     }
 
     if (state.view === "orders") {
+      var orderSearchInput = document.getElementById("orderSearch");
+      if (orderSearchInput) {
+        orderSearchInput.addEventListener("input", function () { state.orderSearch = orderSearchInput.value; render(); });
+        if (state.orderSearch) {
+          var pos = orderSearchInput.value.length;
+          orderSearchInput.focus();
+          orderSearchInput.setSelectionRange(pos, pos);
+        }
+      }
       var toggleBtn = document.getElementById("toggleOrderForm");
       if (toggleBtn) toggleBtn.addEventListener("click", function () {
         if (state.showOrderForm) { state.showOrderForm = false; resetOrderForm(); }
@@ -1178,10 +1222,21 @@
       var clearBtn = document.getElementById("clearFilters");
       if (clearBtn) clearBtn.addEventListener("click", function () { state.receiptFilter = { orderId: "", from: "", to: "" }; render(); });
 
-      document.querySelectorAll("[data-delete-receipt]").forEach(function (btn) {
+      document.querySelectorAll("[data-trash-receipt]").forEach(function (btn) {
         btn.addEventListener("click", function () {
-          if (!confirm("Ushbu kirim hujjatini o'chirasizmi?")) return;
-          deleteReceiptRecord(btn.dataset.deleteReceipt).then(function () { showToast("Kirim o'chirildi."); render(); });
+          if (!confirm("Ushbu kirim hujjatini savatga tashlaysizmi? Keyinchalik \"Savat\" bo'limidan tiklashingiz mumkin.")) return;
+          updateReceiptRecord(btn.dataset.trashReceipt, { deleted: true }).then(function () { showToast("Kirim savatga tashlandi."); render(); });
+        });
+      });
+      document.querySelectorAll("[data-restore-receipt]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          updateReceiptRecord(btn.dataset.restoreReceipt, { deleted: false }).then(function () { showToast("Kirim tiklandi."); render(); });
+        });
+      });
+      document.querySelectorAll("[data-purge-receipt]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          if (!confirm("Ushbu kirim hujjatini butunlay o'chirasizmi? Bu amalni bekor qilib bo'lmaydi.")) return;
+          hardDeleteReceipt(btn.dataset.purgeReceipt).then(function () { showToast("Butunlay o'chirildi."); render(); });
         });
       });
     }
