@@ -128,13 +128,11 @@
     background: var(--glass); -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
     border: 1px solid var(--glass-border); border-radius: 18px; overflow: hidden; box-shadow: var(--shadow);
   }
-  table.ledger th { text-align: left; font-weight: 590; color: var(--muted); font-size: 11.5px; text-transform: none; padding: 10px 14px; border-bottom: 1px solid var(--hairline); }
+  table.ledger th { text-align: left; font-weight: 700; color: var(--ink); font-size: 12.5px; text-transform: none; padding: 10px 14px; border-bottom: 1px solid var(--hairline); }
   table.ledger td { padding: 11px 14px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
   table.ledger tbody tr:last-child td { border-bottom: none; }
   table.ledger tbody tr:hover { background: rgba(120,120,128,0.08); }
   .num { font-family: ui-monospace, 'SF Mono', 'IBM Plex Mono', Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; }
-  .qty-cell { display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 4px; width: 100%; }
-  .qty-cell .qty-unit { color: var(--muted); font-size: 0.82em; min-width: 30px; text-align: left; }
   .right { text-align: right; }
   .muted-text { color: var(--muted); }
   .sub { display: block; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
@@ -372,7 +370,8 @@
     return Object.keys(UNITS).map(function (u) { return '<option value="' + u + '"' + (u === selected ? " selected" : "") + '>' + UNITS[u] + '</option>'; }).join("");
   }
   function fmtQty(n, unit) { return fmtNum(n) + " " + unitLabel(unit); }
-  function fmtQtyCell(n, unit) { return '<span class="qty-cell"><span>' + fmtNum(n) + '</span><span class="qty-unit">' + unitLabel(unit) + '</span></span>'; }
+  function orderLabel(raqam) { return esc(raqam) + "-farmoyish"; }
+  function fmtQtyCell(n, unit) { return fmtNum(n) + " " + unitLabel(unit); }
   function esc(str) { return String(str == null ? "" : str).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function fmtNum(n) { n = Number(n) || 0; return n.toLocaleString("uz-UZ", { maximumFractionDigits: 1 }); }
   function fmtDate(iso) {
@@ -662,7 +661,7 @@
       '<table class="ledger"><thead><tr><th>Sana</th><th>Farmoyish</th><th>Hujjat</th><th>Materiallar</th></tr></thead><tbody>' +
       recent.map(function (r) {
         var o = getOrderById(r.farmoyishId);
-        return '<tr><td class="num">' + fmtDate(r.sana) + '</td><td class="num"><strong>№' + esc(o ? o.raqam : "?") + '</strong></td><td>' + esc(r.hujjat || "—") + '</td><td>' + receiptMaterialsDetail(r) + '</td></tr>';
+        return '<tr><td class="num">' + fmtDate(r.sana) + '</td><td class="num"><strong>' + (o ? orderLabel(o.raqam) : "Noma'lum farmoyish") + '</strong></td><td>' + esc(r.hujjat || "—") + '</td><td>' + receiptMaterialsDetail(r) + '</td></tr>';
       }).join("") + '</tbody></table>'
       : emptyState("Hali birorta kirim qayd etilmagan.", "Kirim qo'shish", "receipts");
 
@@ -775,7 +774,7 @@
 
     var searchHtml = '<div class="filters">' +
       '<input type="text" id="orderSearch" placeholder="Farmoyish raqami yoki izoh bo\'yicha qidirish..." value="' + esc(state.orderSearch) + '" style="min-width:220px;">' +
-      '<button class="btn small" id="orderSortToggle" title="Raqam bo\'yicha saralash yo\'nalishi">№ ' + (state.orderSortDir === "asc" ? "pastdan tepaga ↑" : "tepadan pastga ↓") + '</button>' +
+      '<button class="btn small" id="orderSortToggle" title="Raqam bo\'yicha saralash yo\'nalishi">Raqam: ' + (state.orderSortDir === "asc" ? "pastdan tepaga ↑" : "tepadan pastga ↓") + '</button>' +
       '<span class="view-toggle"><button data-order-view="list" class="' + (state.orderViewMode === "list" ? "active" : "") + '">Ro\'yxat</button><button data-order-view="grid" class="' + (state.orderViewMode === "grid" ? "active" : "") + '">Katakcha</button></span>' +
       '</div>';
 
@@ -794,7 +793,7 @@
         var status2 = orderStatus(sel);
         detailPanel = '<div class="card" style="margin-top:14px;">' +
           '<div class="block-title" style="margin-bottom:14px;">' +
-            '<h2><strong>№' + esc(sel.raqam) + '</strong> — ' + fmtDate(sel.sana) + (sel.izoh ? ' — ' + esc(sel.izoh) : '') + ' <span class="badge ' + status2.cls + '">' + status2.label + '</span></h2>' +
+            '<h2><strong>' + orderLabel(sel.raqam) + '</strong> — ' + fmtDate(sel.sana) + (sel.izoh ? ' — ' + esc(sel.izoh) : '') + ' <span class="badge ' + status2.cls + '">' + status2.label + '</span></h2>' +
             '<div class="row-actions">' +
               (sel.hujjatFayl ? '<a class="btn ghost small icon-btn" title="PDF-ni ko\'rish" href="/_blob/' + esc(sel.hujjatFayl) + '" target="_blank" rel="noopener">' + iconPdf() + '</a>' : '') +
               '<button class="btn ghost small icon-btn" title="Ushbu farmoyish uchun kirim qo\'shish" data-quick-receipt="' + sel.id + '">' + iconPlus() + '</button>' +
@@ -812,7 +811,7 @@
           var status = orderStatus(o);
           var pct = orderAvgPct(o);
           return '<tr>' +
-            '<td class="num"><strong>№' + esc(o.raqam) + '</strong></td>' +
+            '<td class="num"><strong>' + orderLabel(o.raqam) + '</strong></td>' +
             '<td class="num">' + fmtDate(o.sana) + '</td>' +
             '<td>' + esc(o.izoh || "—") + '</td>' +
             '<td>' + progressCell(pct, 100) + '</td>' +
@@ -832,7 +831,7 @@
     if (trashed.length) {
       trashHtml += '<table class="ledger" style="margin-top:10px;"><thead><tr><th>Farmoyish</th><th>Sana</th><th>Izoh</th><th></th></tr></thead><tbody>' +
         trashed.map(function (o) {
-          return '<tr><td class="num">№' + esc(o.raqam) + '</td><td class="num">' + fmtDate(o.sana) + '</td><td>' + esc(o.izoh || "—") + '</td>' +
+          return '<tr><td class="num">' + orderLabel(o.raqam) + '</td><td class="num">' + fmtDate(o.sana) + '</td><td>' + esc(o.izoh || "—") + '</td>' +
             '<td><div class="row-actions"><button class="btn small icon-btn" title="Tiklash" data-restore-order="' + o.id + '">' + iconRestore() + '</button><button class="btn ghost small icon-btn danger-outline" title="Butunlay o\'chirish" data-purge-order="' + o.id + '">' + iconPurge() + '</button></div></td></tr>';
         }).join("") + '</tbody></table>';
     } else {
@@ -883,7 +882,7 @@
     var toggleBtn = '<button class="btn primary block-btn" id="toggleReceiptForm">' + toggleLabel + '</button>';
 
     var orderOptions = activeOrders().slice().sort(function (a, b) { return (b.sana || "").localeCompare(a.sana || ""); })
-      .map(function (o) { return '<option value="' + o.id + '"' + (state.receiptFormMeta.farmoyishId === o.id ? " selected" : "") + '>№' + esc(o.raqam) + ' — ' + fmtDate(o.sana) + '</option>'; }).join("");
+      .map(function (o) { return '<option value="' + o.id + '"' + (state.receiptFormMeta.farmoyishId === o.id ? " selected" : "") + '>' + orderLabel(o.raqam) + ' — ' + fmtDate(o.sana) + '</option>'; }).join("");
 
     var formHtml = "";
     if (state.showReceiptForm) {
@@ -912,7 +911,7 @@
     }
 
     var filterOpts = activeOrders().slice().sort(function (a, b) { return (b.sana || "").localeCompare(a.sana || ""); })
-      .map(function (o) { return '<option value="' + o.id + '">№' + esc(o.raqam) + ' — ' + fmtDate(o.sana) + '</option>'; }).join("");
+      .map(function (o) { return '<option value="' + o.id + '">' + orderLabel(o.raqam) + ' — ' + fmtDate(o.sana) + '</option>'; }).join("");
     var filterHtml =
       '<div class="filters">' +
         '<select id="filterOrder"><option value="">Barcha farmoyishlar</option>' + filterOpts + '</select>' +
@@ -932,7 +931,7 @@
       '<table class="ledger"><thead><tr><th>Sana</th><th>Farmoyish</th><th>Hujjat</th><th>Materiallar</th><th></th></tr></thead><tbody>' +
       filtered.map(function (r) {
         var o = getOrderById(r.farmoyishId);
-        return '<tr><td class="num">' + fmtDate(r.sana) + '</td><td class="num"><strong>№' + esc(o ? o.raqam : "?") + '</strong>' + (o && o.deleted ? '<span class="sub">(o\'chirilgan)</span>' : '') + '</td><td>' + esc(r.hujjat || "—") + '</td><td>' + receiptMaterialsDetail(r) + '</td>' +
+        return '<tr><td class="num">' + fmtDate(r.sana) + '</td><td class="num"><strong>' + (o ? orderLabel(o.raqam) : "Noma'lum farmoyish") + '</strong>' + (o && o.deleted ? '<span class="sub">(o\'chirilgan)</span>' : '') + '</td><td>' + esc(r.hujjat || "—") + '</td><td>' + receiptMaterialsDetail(r) + '</td>' +
           '<td><div class="row-actions"><button class="btn ghost small icon-btn" title="Tahrirlash" data-edit-receipt="' + r.id + '">' + iconPencil() + '</button><button class="btn ghost small icon-btn danger-icon" title="Savatga tashlash" data-trash-receipt="' + r.id + '">' + iconTrash() + '</button></div></td></tr>';
       }).join("") + '</tbody></table>'
       : emptyState("Ushbu filtrga mos kirim topilmadi.", "Filtrlarni tozalash", "receipts");
@@ -943,7 +942,7 @@
       trashHtml += '<table class="ledger" style="margin-top:10px;"><thead><tr><th>Sana</th><th>Farmoyish</th><th>Hujjat</th><th>Materiallar</th><th></th></tr></thead><tbody>' +
         trashedR.map(function (r) {
           var o = getOrderById(r.farmoyishId);
-          return '<tr><td class="num">' + fmtDate(r.sana) + '</td><td class="num"><strong>№' + esc(o ? o.raqam : "?") + '</strong></td><td>' + esc(r.hujjat || "—") + '</td><td>' + receiptMaterialsDetail(r) + '</td>' +
+          return '<tr><td class="num">' + fmtDate(r.sana) + '</td><td class="num"><strong>' + (o ? orderLabel(o.raqam) : "Noma'lum farmoyish") + '</strong></td><td>' + esc(r.hujjat || "—") + '</td><td>' + receiptMaterialsDetail(r) + '</td>' +
             '<td><div class="row-actions"><button class="btn small icon-btn" title="Tiklash" data-restore-receipt="' + r.id + '">' + iconRestore() + '</button><button class="btn ghost small icon-btn danger-outline" title="Butunlay o\'chirish" data-purge-receipt="' + r.id + '">' + iconPurge() + '</button></div></td></tr>';
         }).join("") + '</tbody></table>';
     } else {
@@ -1035,10 +1034,10 @@
       var progress = orderMaterialProgress(o);
       var status = orderStatus(o).label;
       if (!progress.length) {
-        orderRows.push(["№" + o.raqam, fmtDate(o.sana), o.izoh || "", "", "", "", "", "", status]);
+        orderRows.push([o.raqam + "-farmoyish", fmtDate(o.sana), o.izoh || "", "", "", "", "", "", status]);
       } else {
         progress.forEach(function (p) {
-          orderRows.push(["№" + o.raqam, fmtDate(o.sana), o.izoh || "", p.nomi, p.reja, unitLabel(p.birlik), p.kirim, p.qoldiq, status]);
+          orderRows.push([o.raqam + "-farmoyish", fmtDate(o.sana), o.izoh || "", p.nomi, p.reja, unitLabel(p.birlik), p.kirim, p.qoldiq, status]);
         });
       }
     });
@@ -1046,7 +1045,7 @@
     var receiptRows = [["Sana", "Farmoyish", "Hujjat", "Material", "Miqdor", "Birlik"]];
     activeReceipts().slice().sort(function (a, b) { return a.sana.localeCompare(b.sana); }).forEach(function (r) {
       var o = getOrderById(r.farmoyishId);
-      (r.materiallar || []).forEach(function (m) { receiptRows.push([fmtDate(r.sana), "№" + (o ? o.raqam : "?"), r.hujjat || "", m.nomi, m.miqdor, unitLabel(m.birlik)]); });
+      (r.materiallar || []).forEach(function (m) { receiptRows.push([fmtDate(r.sana), (o ? o.raqam + "-farmoyish" : "Noma'lum farmoyish"), r.hujjat || "", m.nomi, m.miqdor, unitLabel(m.birlik)]); });
     });
 
     var wb = XLSX.utils.book_new();
@@ -1190,7 +1189,7 @@
             var task = state.editingOrderId ? updateOrderRecord(state.editingOrderId, data) : addOrderRecord(Object.assign({ deleted: false, hujjatFayl: hujjatFayl || null }, data));
             task.then(function () {
               if (oldAssetId && (pdfFile || wantsRemove) && assetsHandle) { assetsHandle.delete(oldAssetId).catch(function () {}); }
-              showToast(state.editingOrderId ? "Farmoyish yangilandi." : "Farmoyish №" + raqam + " saqlandi.");
+              showToast(state.editingOrderId ? "Farmoyish yangilandi." : raqam + "-farmoyish saqlandi.");
               state.showOrderForm = false;
               resetOrderForm();
               render();
