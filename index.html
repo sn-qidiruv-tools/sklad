@@ -256,6 +256,21 @@
   details.trash-panel summary::-webkit-details-marker { display: none; }
 
   .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .view-toggle { display: inline-flex; gap: 2px; background: rgba(120,120,128,0.10); border-radius: 999px; padding: 3px; }
+  .view-toggle button { border: none; background: transparent; padding: 6px 13px; border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--muted); cursor: pointer; }
+  .view-toggle button.active { background: var(--glass-strong); color: var(--ink); box-shadow: var(--shadow); }
+  .order-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 10px; }
+  .order-tile {
+    aspect-ratio: 1; border-radius: 16px; border: 1px solid var(--hairline);
+    background: var(--glass); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+    font-family: ui-monospace, 'SF Mono', monospace; font-weight: 700; font-size: 13px; color: var(--ink);
+    transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+  }
+  .order-tile:hover { transform: scale(1.06); box-shadow: var(--shadow); }
+  .order-tile.selected { background: var(--accent); color: var(--accent-ink); border-color: transparent; box-shadow: 0 4px 14px rgba(10,132,255,0.35); }
+  .order-tile.status-ok:not(.selected) { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ok) 55%, transparent); }
+  .order-tile.status-warn:not(.selected) { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--warn) 55%, transparent); }
   .icon-btn:hover { transform: scale(1.15); }
   .icon-btn:active { transform: scale(1.02); }
   .btn.danger-icon { color: var(--danger); }
@@ -332,6 +347,9 @@
     orderFormRows: [{ nomi: "", miqdor: "" }],
     showTrash: false,
     orderSearch: "",
+    orderSortDir: "desc",
+    orderViewMode: "list",
+    orderGridSelected: null,
     showReceiptForm: false,
     editingReceiptId: null,
     receiptFormMeta: { farmoyishId: "", sana: "", hujjat: "" },
@@ -683,6 +701,27 @@
     state.orderFormRows = [{ nomi: "", miqdor: "" }];
   }
 
+  function compareRaqam(a, b) {
+    var na = parseFloat(a.raqam), nb = parseFloat(b.raqam);
+    if (!isNaN(na) && !isNaN(nb) && na !== nb) return na - nb;
+    return String(a.raqam || "").localeCompare(String(b.raqam || ""), undefined, { numeric: true });
+  }
+
+  function orderDetailBody(o) {
+    var matRows = orderMaterialProgress(o);
+    var matSub = matRows.map(function (m) {
+      return '<tr><td>' + esc(m.nomi) + '</td><td class="num right">' + fmtQtyCell(m.reja, m.birlik) + '</td><td class="num right">' + fmtQtyCell(m.kirim, m.birlik) + '</td><td class="num right">' + fmtQtyCell(m.qoldiq, m.birlik) + '</td><td>' + progressCell(m.kirim, m.reja) + '</td></tr>';
+    }).join("");
+    var docs = orderReceiptsForOrder(o);
+    var docSub = docs.length ? docs.map(function (r) {
+      return '<tr><td>' + esc(r.hujjat || "—") + '</td><td class="num">' + fmtDate(r.sana) + '</td><td>' + receiptMaterialsDetail(r) + '</td></tr>';
+    }).join("") : '<tr><td colspan="3" class="muted-text">Hali kirim yo\'q.</td></tr>';
+    return '<h4>Materiallar bo\'yicha</h4>' +
+      '<table class="ledger"><thead><tr><th>Material</th><th class="right">Reja</th><th class="right">Kirim</th><th class="right">Qoldiq</th><th>Bajarilishi</th></tr></thead><tbody>' + matSub + '</tbody></table>' +
+      '<h4>Hujjatlar bo\'yicha</h4>' +
+      '<table class="ledger"><thead><tr><th>Hujjat</th><th>Sana</th><th>Kirim qilingan materiallar</th></tr></thead><tbody>' + docSub + '</tbody></table>';
+  }
+
   function renderOrders() {
     var editing = state.editingOrderId ? getOrderById(state.editingOrderId) : null;
     var toggleLabel = state.showOrderForm ? "Shaklni yopish" : "+ Yangi farmoyish qo'shish";
@@ -715,8 +754,13 @@
             '</div>' +
             '<div class="field" style="margin-bottom:10px;"><label>Demontaj uchun rejalashtirilgan materiallar</label></div>' +
             '<div class="material-rows" id="materialRows"></div>' +
-            '<button type="button" class="btn small" id="addMaterialRow">+ Yana material qo\'shish</button>' +
-            '<div class="form-actions" style="margin-top:16px;"><button type="submit" class="btn primary">' + (state.editingOrderId ? "O'zgarishlarni saqlash" : "Farmoyishni saqlash") + '</button>' +
+            '<div class="form-actions" style="margin-bottom:6px;">' +
+              '<button type="button" class="btn small" id="addMaterialRow">+ Yana material qo\'shish</button>' +
+              '<span class="muted-text" style="font-size:12px;">yoki</span>' +
+              '<input type="number" id="bulkRowCount" min="1" max="30" value="5" class="mono" style="width:64px;padding:6px 8px;border:1px solid var(--hairline);border-radius:10px;background:rgba(120,120,128,0.08);">' +
+              '<button type="button" class="btn small" id="bulkAddRows">shuncha qator ochish (max 30)</button>' +
+            '</div>' +
+            '<div class="form-actions" style="margin-top:10px;"><button type="submit" class="btn primary">' + (state.editingOrderId ? "O'zgarishlarni saqlash" : "Farmoyishni saqlash") + '</button>' +
             (state.editingOrderId ? '<button type="button" class="btn ghost" id="cancelOrderEdit">Bekor qilish</button>' : '') +
             '</div>' +
           '</form></div>';
@@ -727,43 +771,61 @@
     var orders = activeOrders().filter(function (o) {
       if (!q) return true;
       return (o.raqam || "").toLowerCase().indexOf(q) > -1 || (o.izoh || "").toLowerCase().indexOf(q) > -1;
-    }).sort(function (a, b) { return (b.sana || "").localeCompare(a.sana || ""); });
-    var searchHtml = '<div class="filters"><input type="text" id="orderSearch" placeholder="Farmoyish raqami yoki izoh bo\'yicha qidirish..." value="' + esc(state.orderSearch) + '" style="min-width:260px;"></div>';
-    var listHtml = orders.length ?
-      '<table class="ledger"><thead><tr><th>Farmoyish</th><th>Sana</th><th>Izoh</th><th>Bajarilishi</th><th>Holat</th><th></th></tr></thead><tbody>' +
-      orders.map(function (o) {
+    }).sort(function (a, b) { var c = compareRaqam(a, b); return state.orderSortDir === "asc" ? c : -c; });
+
+    var searchHtml = '<div class="filters">' +
+      '<input type="text" id="orderSearch" placeholder="Farmoyish raqami yoki izoh bo\'yicha qidirish..." value="' + esc(state.orderSearch) + '" style="min-width:220px;">' +
+      '<button class="btn small" id="orderSortToggle" title="Raqam bo\'yicha saralash yo\'nalishi">№ ' + (state.orderSortDir === "asc" ? "pastdan tepaga ↑" : "tepadan pastga ↓") + '</button>' +
+      '<span class="view-toggle"><button data-order-view="list" class="' + (state.orderViewMode === "list" ? "active" : "") + '">Ro\'yxat</button><button data-order-view="grid" class="' + (state.orderViewMode === "grid" ? "active" : "") + '">Katakcha</button></span>' +
+      '</div>';
+
+    var listHtml;
+    if (!orders.length) {
+      listHtml = q ? '<div class="empty">Qidiruvga mos farmoyish topilmadi.</div>' : emptyState("Hali birorta farmoyish kiritilmagan.", "Yuqoridagi tugma orqali qo'shing", "orders");
+    } else if (state.orderViewMode === "grid") {
+      var tiles = orders.map(function (o) {
         var status = orderStatus(o);
-        var pct = orderAvgPct(o);
-        var matRows = orderMaterialProgress(o);
-        var matSub = matRows.map(function (m) {
-          return '<tr><td>' + esc(m.nomi) + '</td><td class="num right">' + fmtQtyCell(m.reja, m.birlik) + '</td><td class="num right">' + fmtQtyCell(m.kirim, m.birlik) + '</td><td class="num right">' + fmtQtyCell(m.qoldiq, m.birlik) + '</td><td>' + progressCell(m.kirim, m.reja) + '</td></tr>';
-        }).join("");
-        var docs = orderReceiptsForOrder(o);
-        var docSub = docs.length ? docs.map(function (r) {
-          return '<tr><td>' + esc(r.hujjat || "—") + '</td><td class="num">' + fmtDate(r.sana) + '</td><td>' + receiptMaterialsDetail(r) + '</td></tr>';
-        }).join("") : '<tr><td colspan="3" class="muted-text">Hali kirim yo\'q.</td></tr>';
-        return '<tr>' +
-          '<td class="num"><strong>№' + esc(o.raqam) + '</strong></td>' +
-          '<td class="num">' + fmtDate(o.sana) + '</td>' +
-          '<td>' + esc(o.izoh || "—") + '</td>' +
-          '<td>' + progressCell(pct, 100) + '</td>' +
-          '<td><span class="badge ' + status.cls + '">' + status.label + '</span></td>' +
-          '<td><div class="row-actions">' +
-            (o.hujjatFayl ? '<a class="btn ghost small icon-btn" title="Tasdiqlovchi PDF-ni ko\'rish" href="/_blob/' + esc(o.hujjatFayl) + '" target="_blank" rel="noopener">' + iconPdf() + '</a>' : '') +
-            '<button class="btn ghost small icon-btn" title="Ushbu farmoyish uchun kirim qo\'shish" data-quick-receipt="' + o.id + '">' + iconPlus() + '</button><button class="btn ghost small icon-btn" title="Tahrirlash" data-edit-order="' + o.id + '">' + iconPencil() + '</button><button class="btn ghost small icon-btn danger-icon" title="Savatga tashlash" data-trash-order="' + o.id + '">' + iconTrash() + '</button></div></td>' +
-        '</tr>' +
-        '<tr><td colspan="6" style="border-top:none;padding-top:0;">' +
-          '<details class="detail-toggle"><summary>Batafsil ko\'rish</summary>' +
-          '<div class="sub-table">' +
-            '<h4>Materiallar bo\'yicha</h4>' +
-            '<table class="ledger"><thead><tr><th>Material</th><th class="right">Reja</th><th class="right">Kirim</th><th class="right">Qoldiq</th><th>Bajarilishi</th></tr></thead><tbody>' + matSub + '</tbody></table>' +
-            '<h4>Hujjatlar bo\'yicha</h4>' +
-            '<table class="ledger"><thead><tr><th>Hujjat</th><th>Sana</th><th>Kirim qilingan materiallar</th></tr></thead><tbody>' + docSub + '</tbody></table>' +
+        var selected = state.orderGridSelected === o.id;
+        return '<button type="button" class="order-tile ' + (selected ? "selected" : "status-" + status.cls) + '" title="' + esc(o.izoh || "") + '" data-grid-order="' + o.id + '">' + esc(o.raqam) + '</button>';
+      }).join("");
+      var sel = state.orderGridSelected ? getOrderById(state.orderGridSelected) : null;
+      var detailPanel = "";
+      if (sel) {
+        var status2 = orderStatus(sel);
+        detailPanel = '<div class="card" style="margin-top:14px;">' +
+          '<div class="block-title" style="margin-bottom:14px;">' +
+            '<h2><strong>№' + esc(sel.raqam) + '</strong> — ' + fmtDate(sel.sana) + (sel.izoh ? ' — ' + esc(sel.izoh) : '') + ' <span class="badge ' + status2.cls + '">' + status2.label + '</span></h2>' +
+            '<div class="row-actions">' +
+              (sel.hujjatFayl ? '<a class="btn ghost small icon-btn" title="PDF-ni ko\'rish" href="/_blob/' + esc(sel.hujjatFayl) + '" target="_blank" rel="noopener">' + iconPdf() + '</a>' : '') +
+              '<button class="btn ghost small icon-btn" title="Ushbu farmoyish uchun kirim qo\'shish" data-quick-receipt="' + sel.id + '">' + iconPlus() + '</button>' +
+              '<button class="btn ghost small icon-btn" title="Tahrirlash" data-edit-order="' + sel.id + '">' + iconPencil() + '</button>' +
+              '<button class="btn ghost small icon-btn danger-icon" title="Savatga tashlash" data-trash-order="' + sel.id + '">' + iconTrash() + '</button>' +
+            '</div>' +
           '</div>' +
-          '</details>' +
-        '</td></tr>';
-      }).join("") + '</tbody></table>'
-      : (q ? '<div class="empty">Qidiruvga mos farmoyish topilmadi.</div>' : emptyState("Hali birorta farmoyish kiritilmagan.", "Yuqoridagi tugma orqali qo'shing", "orders"));
+          orderDetailBody(sel) +
+        '</div>';
+      }
+      listHtml = '<div class="order-grid">' + tiles + '</div>' + detailPanel;
+    } else {
+      listHtml = '<table class="ledger"><thead><tr><th>Farmoyish</th><th>Sana</th><th>Izoh</th><th>Bajarilishi</th><th>Holat</th><th></th></tr></thead><tbody>' +
+        orders.map(function (o) {
+          var status = orderStatus(o);
+          var pct = orderAvgPct(o);
+          return '<tr>' +
+            '<td class="num"><strong>№' + esc(o.raqam) + '</strong></td>' +
+            '<td class="num">' + fmtDate(o.sana) + '</td>' +
+            '<td>' + esc(o.izoh || "—") + '</td>' +
+            '<td>' + progressCell(pct, 100) + '</td>' +
+            '<td><span class="badge ' + status.cls + '">' + status.label + '</span></td>' +
+            '<td><div class="row-actions">' +
+              (o.hujjatFayl ? '<a class="btn ghost small icon-btn" title="Tasdiqlovchi PDF-ni ko\'rish" href="/_blob/' + esc(o.hujjatFayl) + '" target="_blank" rel="noopener">' + iconPdf() + '</a>' : '') +
+              '<button class="btn ghost small icon-btn" title="Ushbu farmoyish uchun kirim qo\'shish" data-quick-receipt="' + o.id + '">' + iconPlus() + '</button><button class="btn ghost small icon-btn" title="Tahrirlash" data-edit-order="' + o.id + '">' + iconPencil() + '</button><button class="btn ghost small icon-btn danger-icon" title="Savatga tashlash" data-trash-order="' + o.id + '">' + iconTrash() + '</button></div></td>' +
+          '</tr>' +
+          '<tr><td colspan="6" style="border-top:none;padding-top:0;">' +
+            '<details class="detail-toggle"><summary>Batafsil ko\'rish</summary><div class="sub-table">' + orderDetailBody(o) + '</div></details>' +
+          '</td></tr>';
+        }).join("") + '</tbody></table>';
+    }
 
     var trashed = trashedOrders();
     var trashHtml = '<details class="trash-panel"><summary>🗑 Savat (' + trashed.length + ')</summary>';
@@ -1051,9 +1113,40 @@
         render();
       });
 
+      var sortToggleBtn = document.getElementById("orderSortToggle");
+      if (sortToggleBtn) sortToggleBtn.addEventListener("click", function () {
+        state.orderSortDir = state.orderSortDir === "asc" ? "desc" : "asc";
+        render();
+      });
+      document.querySelectorAll("[data-order-view]").forEach(function (btn) {
+        btn.addEventListener("click", function () { state.orderViewMode = btn.dataset.orderView; render(); });
+      });
+      document.querySelectorAll("[data-grid-order]").forEach(function (tile) {
+        tile.addEventListener("click", function () {
+          var id = tile.dataset.gridOrder;
+          state.orderGridSelected = (state.orderGridSelected === id) ? null : id;
+          render();
+        });
+      });
+
       if (state.showOrderForm && state.materialTypes.length) {
         renderMaterialRows();
-        document.getElementById("addMaterialRow").addEventListener("click", function () { state.orderFormRows.push({ nomi: "", miqdor: "" }); renderMaterialRows(); });
+        document.getElementById("addMaterialRow").addEventListener("click", function () {
+          if (state.orderFormRows.length >= 30) { showToast("Bitta farmoyishda maksimal 30 ta material qatori bo'lishi mumkin."); return; }
+          state.orderFormRows.push({ nomi: "", miqdor: "" });
+          renderMaterialRows();
+        });
+        var bulkBtn = document.getElementById("bulkAddRows");
+        if (bulkBtn) bulkBtn.addEventListener("click", function () {
+          var countInput = document.getElementById("bulkRowCount");
+          var n = Math.max(1, Math.min(30, Number(countInput.value) || 1));
+          var spaceLeft = 30 - state.orderFormRows.length;
+          if (spaceLeft <= 0) { showToast("Allaqachon 30 ta qator bor — bu maksimal chegara."); return; }
+          var toAdd = Math.min(n, spaceLeft);
+          for (var k = 0; k < toAdd; k++) state.orderFormRows.push({ nomi: "", miqdor: "" });
+          if (toAdd < n) showToast("Faqat " + toAdd + " ta qator qo'shildi — 30 tadan oshmaydi.");
+          renderMaterialRows();
+        });
         document.getElementById("materialRows").addEventListener("input", function (e) {
           var idx = e.target.dataset.rowIndex, field = e.target.dataset.rowField;
           if (idx == null) return;
