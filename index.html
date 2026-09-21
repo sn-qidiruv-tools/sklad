@@ -338,6 +338,7 @@
 
   var state = {
     orders: [], receipts: [], materialTypes: [],
+    editingMaterialId: null,
     view: "dashboard",
     showOrderForm: false,
     editingOrderId: null,
@@ -482,6 +483,34 @@
     state.materialTypes.push(Object.assign({ id: uid() }, data));
     saveLocal(MATERIALS_KEY, state.materialTypes);
     return Promise.resolve();
+  }
+  function updateMaterialTypeRecord(id, data) {
+    if (storageMode === "shared" && dbHandle) return dbHandle.doc("materialTurlari/" + id).update(data);
+    var idx = state.materialTypes.findIndex(function (m) { return m.id === id; });
+    if (idx > -1) state.materialTypes[idx] = Object.assign({}, state.materialTypes[idx], data);
+    saveLocal(MATERIALS_KEY, state.materialTypes);
+    return Promise.resolve();
+  }
+  function renameMaterialEverywhere(oldNomi, newNomi, newBirlik) {
+    if (oldNomi === newNomi) return Promise.resolve();
+    var tasks = [];
+    state.orders.forEach(function (o) {
+      var changed = false;
+      var updated = (o.materiallar || []).map(function (m) {
+        if (m.nomi === oldNomi) { changed = true; return Object.assign({}, m, { nomi: newNomi, birlik: newBirlik }); }
+        return m;
+      });
+      if (changed) tasks.push(updateOrderRecord(o.id, { materiallar: updated }));
+    });
+    state.receipts.forEach(function (r) {
+      var changed = false;
+      var updated = (r.materiallar || []).map(function (m) {
+        if (m.nomi === oldNomi) { changed = true; return Object.assign({}, m, { nomi: newNomi, birlik: newBirlik }); }
+        return m;
+      });
+      if (changed) tasks.push(updateReceiptRecord(r.id, { materiallar: updated }));
+    });
+    return Promise.all(tasks);
   }
   function deleteMaterialTypeRecord(id) {
     if (storageMode === "shared" && dbHandle) return dbHandle.doc("materialTurlari/" + id).delete();
@@ -673,23 +702,27 @@
 
   // ---------- Materials ----------
   function renderMaterials() {
+    var editing = state.editingMaterialId ? state.materialTypes.find(function (m) { return m.id === state.editingMaterialId; }) : null;
     var formHtml =
       '<div class="card"><form id="materialTypeForm">' +
         '<div class="form-row">' +
-          '<div class="field"><label for="mtNomi">Material nomi</label><input id="mtNomi" placeholder="masalan: TPP-10x2" required></div>' +
-          '<div class="field"><label for="mtBirlik">O\'lchov birligi</label><select id="mtBirlik">' + unitOptionsHtml("m") + '</select></div>' +
+          '<div class="field"><label for="mtNomi">Material nomi</label><input id="mtNomi" placeholder="masalan: TPP-10x2" value="' + esc(editing ? editing.nomi : "") + '" required></div>' +
+          '<div class="field"><label for="mtBirlik">O\'lchov birligi</label><select id="mtBirlik">' + unitOptionsHtml(editing ? editing.birlik : "m") + '</select></div>' +
         '</div>' +
-        '<div class="form-actions"><button type="submit" class="btn primary">Material qo\'shish</button></div>' +
+        '<div class="form-actions"><button type="submit" class="btn primary">' + (editing ? "O'zgarishlarni saqlash" : "Material qo'shish") + '</button>' +
+        (editing ? '<button type="button" class="btn ghost" id="cancelMaterialEdit">Bekor qilish</button>' : '') +
+        '</div>' +
+        (editing ? '<p class="row-hint" style="margin-top:10px;">Nomni o\'zgartirsangiz, bu material bog\'langan barcha farmoyish va kirimlardagi nomi ham avtomatik yangilanadi.</p>' : '') +
       '</form></div>';
 
     var list = state.materialTypes.slice().sort(function (a, b) { return a.nomi.localeCompare(b.nomi); });
     var listHtml = list.length ?
       '<table class="ledger"><thead><tr><th>Material nomi</th><th>Birlik</th><th></th></tr></thead><tbody>' +
-      list.map(function (m) { return '<tr><td>' + esc(m.nomi) + '</td><td class="num">' + unitLabel(m.birlik) + '</td><td><button class="btn ghost small icon-btn danger-icon" title="O\'chirish" data-delete-material="' + m.id + '">' + iconTrash() + '</button></td></tr>'; }).join("") + '</tbody></table>'
+      list.map(function (m) { return '<tr><td>' + esc(m.nomi) + '</td><td class="num">' + unitLabel(m.birlik) + '</td><td><div class="row-actions"><button class="btn ghost small icon-btn" title="Tahrirlash" data-edit-material="' + m.id + '">' + iconPencil() + '</button><button class="btn ghost small icon-btn danger-icon" title="O\'chirish" data-delete-material="' + m.id + '">' + iconTrash() + '</button></div></td></tr>'; }).join("") + '</tbody></table>'
       : emptyState("Hali birorta material turi qo'shilmagan.", "Yuqoridagi shakl orqali qo'shing", "materials");
 
     return pageHead("Materiallar", "Farmoyish va kirim shakllarida tanlash uchun material turlari ro'yxati.") +
-      block("Yangi material turi qo'shish", "Nomi va o'lchov birligi", formHtml) +
+      block(editing ? "Materialni tahrirlash" : "Yangi material turi qo'shish", "Nomi va o'lchov birligi", formHtml) +
       block("Barcha materiallar", list.length + " ta", listHtml);
   }
 
@@ -847,8 +880,11 @@
   function renderMaterialRows() {
     var wrap = document.getElementById("materialRows");
     if (!wrap) return;
-    var options = state.materialTypes.slice().sort(function (a, b) { return a.nomi.localeCompare(b.nomi); });
+    var allOptions = state.materialTypes.slice().sort(function (a, b) { return a.nomi.localeCompare(b.nomi); });
     wrap.innerHTML = state.orderFormRows.map(function (row, i) {
+      var usedElsewhere = {};
+      state.orderFormRows.forEach(function (r2, j) { if (j !== i && r2.nomi) usedElsewhere[r2.nomi] = true; });
+      var options = allOptions.filter(function (m) { return !usedElsewhere[m.nomi]; });
       var optHtml = '<option value="">Tanlang...</option>' + options.map(function (m) {
         return '<option value="' + esc(m.nomi) + '"' + (row.nomi === m.nomi ? " selected" : "") + '>' + esc(m.nomi) + ' (' + unitLabel(m.birlik) + ')</option>';
       }).join("");
@@ -969,7 +1005,10 @@
     if (addBtn) addBtn.style.display = "";
     var progress = orderMaterialProgress(order, state.editingReceiptId);
     wrap.innerHTML = state.receiptFormRows.map(function (row, i) {
-      var optHtml = '<option value="">Tanlang...</option>' + progress.map(function (p) {
+      var usedElsewhere = {};
+      state.receiptFormRows.forEach(function (r2, j) { if (j !== i && r2.materialNomi) usedElsewhere[r2.materialNomi] = true; });
+      var availableProgress = progress.filter(function (p) { return !usedElsewhere[p.nomi]; });
+      var optHtml = '<option value="">Tanlang...</option>' + availableProgress.map(function (p) {
         return '<option value="' + esc(p.nomi) + '"' + (row.materialNomi === p.nomi ? " selected" : "") + '>' + esc(p.nomi) + ' — qoldiq: ' + fmtQty(p.qoldiq, p.birlik) + '</option>';
       }).join("");
       var selected = progress.find(function (p) { return p.nomi === row.materialNomi; });
@@ -1084,8 +1123,27 @@
         var nomi = document.getElementById("mtNomi").value.trim();
         var birlik = document.getElementById("mtBirlik").value;
         if (!nomi) { showToast("Material nomini kiriting."); return; }
-        if (state.materialTypes.some(function (m) { return m.nomi.toLowerCase() === nomi.toLowerCase(); })) { showToast("Bu nomdagi material allaqachon mavjud."); return; }
-        addMaterialTypeRecord({ nomi: nomi, birlik: birlik }).then(function () { showToast("Material qo'shildi."); render(); });
+        var duplicate = state.materialTypes.some(function (m) { return m.nomi.toLowerCase() === nomi.toLowerCase() && m.id !== state.editingMaterialId; });
+        if (duplicate) { showToast("Bu nomdagi material allaqachon mavjud."); return; }
+
+        if (state.editingMaterialId) {
+          var old = state.materialTypes.find(function (m) { return m.id === state.editingMaterialId; });
+          var oldNomi = old ? old.nomi : nomi;
+          updateMaterialTypeRecord(state.editingMaterialId, { nomi: nomi, birlik: birlik }).then(function () {
+            return renameMaterialEverywhere(oldNomi, nomi, birlik);
+          }).then(function () {
+            showToast("Material yangilandi.");
+            state.editingMaterialId = null;
+            render();
+          }).catch(function () { showToast("Yangilashda xatolik yuz berdi."); });
+        } else {
+          addMaterialTypeRecord({ nomi: nomi, birlik: birlik }).then(function () { showToast("Material qo'shildi."); render(); });
+        }
+      });
+      var cancelMatEdit = document.getElementById("cancelMaterialEdit");
+      if (cancelMatEdit) cancelMatEdit.addEventListener("click", function () { state.editingMaterialId = null; render(); });
+      document.querySelectorAll("[data-edit-material]").forEach(function (btn) {
+        btn.addEventListener("click", function () { state.editingMaterialId = btn.dataset.editMaterial; render(); window.scrollTo(0, 0); });
       });
       document.querySelectorAll("[data-delete-material]").forEach(function (btn) {
         btn.addEventListener("click", function () {
@@ -1155,6 +1213,7 @@
           var idx = e.target.dataset.rowIndex, field = e.target.dataset.rowField;
           if (idx == null) return;
           state.orderFormRows[idx][field] = e.target.value;
+          if (field === "nomi") renderMaterialRows();
         });
         document.getElementById("materialRows").addEventListener("click", function (e) {
           if (e.target.dataset.removeRow == null) return;
