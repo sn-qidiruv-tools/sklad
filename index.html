@@ -61,7 +61,20 @@
   button, input, select { font-family: inherit; font-size: inherit; color: inherit; }
   button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
 
-  .shell { display: flex; min-height: 100vh; align-items: stretch; }
+  .bg-decor { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
+  .bg-decor span {
+    position: absolute; font-family: ui-monospace, 'SF Mono', monospace; font-weight: 700;
+    color: var(--accent); opacity: 0.10; animation: floatSym ease-in-out infinite;
+    will-change: transform;
+  }
+  @keyframes floatSym {
+    0% { transform: translate(0, 0) rotate(0deg); }
+    50% { transform: translate(6px, -18px) rotate(6deg); }
+    100% { transform: translate(0, 0) rotate(0deg); }
+  }
+  @media (prefers-reduced-motion: reduce) { .bg-decor span { animation: none; } }
+
+  .shell { display: flex; min-height: 100vh; align-items: stretch; position: relative; z-index: 1; }
 
   .sidebar {
     width: 240px; flex-shrink: 0;
@@ -172,11 +185,10 @@
   .material-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
   .material-row {
     display: grid; grid-template-columns: 20px 1fr 110px 32px; gap: 8px; align-items: center;
-    padding: 6px; border-radius: 12px; transition: transform .16s cubic-bezier(.34,1.56,.64,1), box-shadow .16s ease, background .16s ease;
+    padding: 6px; border-radius: 12px; transition: box-shadow .16s ease, background .16s ease;
     position: relative;
   }
   .material-row:hover {
-    transform: scale(1.035) translateY(-1px);
     background: var(--glass-strong);
     box-shadow: var(--shadow-lg);
     z-index: 2;
@@ -292,6 +304,24 @@
 </head>
 <body>
 
+<div class="bg-decor" aria-hidden="true">
+  <span style="top:6%;left:8%;font-size:42px;animation-duration:16s;animation-delay:0s;">+</span>
+  <span style="top:14%;left:82%;font-size:34px;animation-duration:13s;animation-delay:.6s;">7</span>
+  <span style="top:22%;left:46%;font-size:26px;animation-duration:19s;animation-delay:1.2s;">%</span>
+  <span style="top:30%;left:20%;font-size:50px;animation-duration:15s;animation-delay:.3s;">×</span>
+  <span style="top:38%;left:90%;font-size:30px;animation-duration:12s;animation-delay:1.8s;">3</span>
+  <span style="top:46%;left:6%;font-size:28px;animation-duration:17s;animation-delay:.9s;">m</span>
+  <span style="top:54%;left:60%;font-size:44px;animation-duration:14s;animation-delay:0s;">÷</span>
+  <span style="top:62%;left:34%;font-size:32px;animation-duration:18s;animation-delay:1.5s;">9</span>
+  <span style="top:70%;left:78%;font-size:24px;animation-duration:11s;animation-delay:.4s;">kg</span>
+  <span style="top:78%;left:14%;font-size:38px;animation-duration:16s;animation-delay:1s;">=</span>
+  <span style="top:86%;left:52%;font-size:28px;animation-duration:13s;animation-delay:.7s;">5</span>
+  <span style="top:10%;left:64%;font-size:24px;animation-duration:20s;animation-delay:1.4s;">−</span>
+  <span style="top:58%;left:4%;font-size:22px;animation-duration:15s;animation-delay:.2s;">2</span>
+  <span style="top:90%;left:86%;font-size:30px;animation-duration:14s;animation-delay:1.1s;">dona</span>
+  <span style="top:2%;left:32%;font-size:22px;animation-duration:19s;animation-delay:.5s;">8</span>
+</div>
+
 <div class="shell">
   <aside class="sidebar">
     <div class="brand">
@@ -353,7 +383,7 @@
     editingReceiptId: null,
     receiptFormMeta: { farmoyishId: "", sana: "", hujjat: "" },
     receiptFormRows: [{ materialNomi: "", miqdor: "" }],
-    receiptFilter: { orderId: "", from: "", to: "" }
+    receiptFilter: { orderId: "", from: "", to: "", raqamQuery: "" }
   };
 
   function iconPencil() { return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'; }
@@ -950,14 +980,19 @@
       .map(function (o) { return '<option value="' + o.id + '">' + orderLabel(o.raqam) + ' — ' + fmtDate(o.sana) + '</option>'; }).join("");
     var filterHtml =
       '<div class="filters">' +
+        '<input type="text" id="filterRaqam" placeholder="Farmoyish raqami bo\'yicha qidirish..." value="' + esc(state.receiptFilter.raqamQuery) + '" style="min-width:200px;">' +
         '<select id="filterOrder"><option value="">Barcha farmoyishlar</option>' + filterOpts + '</select>' +
         '<input type="date" id="filterFrom" value="' + esc(state.receiptFilter.from) + '" title="Sanadan">' +
         '<input type="date" id="filterTo" value="' + esc(state.receiptFilter.to) + '" title="Sanagacha">' +
         '<button class="btn small ghost" id="clearFilters">Tozalash</button>' +
       '</div>';
 
+    var rq = state.receiptFilter.raqamQuery.trim().toLowerCase();
     var filtered = activeReceipts().filter(function (r) {
-      if (state.receiptFilter.orderId && r.farmoyishId !== state.receiptFilter.orderId) return false;
+      if (rq) {
+        var o = getOrderById(r.farmoyishId);
+        if (!o || (o.raqam || "").toLowerCase().indexOf(rq) === -1) return false;
+      } else if (state.receiptFilter.orderId && r.farmoyishId !== state.receiptFilter.orderId) return false;
       if (state.receiptFilter.from && r.sana < state.receiptFilter.from) return false;
       if (state.receiptFilter.to && r.sana > state.receiptFilter.to) return false;
       return true;
@@ -1408,12 +1443,21 @@
         });
       });
 
+      var fRaqam = document.getElementById("filterRaqam");
       var fOrder = document.getElementById("filterOrder"), fFrom = document.getElementById("filterFrom"), fTo = document.getElementById("filterTo");
+      if (fRaqam) {
+        fRaqam.addEventListener("input", function () { state.receiptFilter.raqamQuery = fRaqam.value; render(); });
+        if (state.receiptFilter.raqamQuery) {
+          var rqPos = fRaqam.value.length;
+          fRaqam.focus();
+          fRaqam.setSelectionRange(rqPos, rqPos);
+        }
+      }
       if (fOrder) fOrder.addEventListener("change", function () { state.receiptFilter.orderId = fOrder.value; render(); });
       if (fFrom) fFrom.addEventListener("change", function () { state.receiptFilter.from = fFrom.value; render(); });
       if (fTo) fTo.addEventListener("change", function () { state.receiptFilter.to = fTo.value; render(); });
       var clearBtn = document.getElementById("clearFilters");
-      if (clearBtn) clearBtn.addEventListener("click", function () { state.receiptFilter = { orderId: "", from: "", to: "" }; render(); });
+      if (clearBtn) clearBtn.addEventListener("click", function () { state.receiptFilter = { orderId: "", from: "", to: "", raqamQuery: "" }; render(); });
 
       document.querySelectorAll("[data-trash-receipt]").forEach(function (btn) {
         btn.addEventListener("click", function () {
