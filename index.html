@@ -276,10 +276,20 @@
   .view-toggle { display: inline-flex; gap: 2px; background: rgba(120,120,128,0.10); border-radius: 999px; padding: 3px; }
   .view-toggle button { border: none; background: transparent; padding: 6px 13px; border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--muted); cursor: pointer; }
   .view-toggle button.active { background: var(--glass-strong); color: var(--ink); box-shadow: var(--shadow); }
+  .order-grid-wrap { display: flex; gap: 22px; align-items: flex-start; }
+  .order-grid-wrap .order-grid { flex: 1 1 100%; transition: flex-basis .25s ease; }
+  .order-grid-wrap.split .order-grid { flex: 0 0 300px; max-width: 300px; }
+  .order-detail-panel { flex: 1 1 auto; min-width: 0; animation: slideInDetail .28s ease; }
+  @keyframes slideInDetail { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: translateX(0); } }
+  @media (prefers-reduced-motion: reduce) { .order-detail-panel { animation: none; } }
+  @media (max-width: 900px) {
+    .order-grid-wrap.split { flex-direction: column; }
+    .order-grid-wrap.split .order-grid { flex: 1 1 100%; max-width: 100%; }
+  }
   .order-grid { display: flex; flex-wrap: wrap; gap: 20px; align-items: stretch; justify-content: flex-start; }
   .order-tile {
     --cardblur: 26;
-    aspect-ratio: 3 / 4; width: 172px; border-radius: 22px; border: 1px solid var(--glass-border);
+    aspect-ratio: 3 / 4; width: 132px; border-radius: 20px; border: 1px solid var(--glass-border);
     background: var(--glass); -webkit-backdrop-filter: blur(calc(var(--cardblur) * 1px)) saturate(190%); backdrop-filter: blur(calc(var(--cardblur) * 1px)) saturate(190%);
     display: grid; grid-template-rows: 1fr auto; align-items: stretch; justify-items: stretch;
     padding: 16px; gap: 10px; cursor: pointer; text-align: left;
@@ -876,7 +886,7 @@
       var detailPanel = "";
       if (sel) {
         var status2 = orderStatus(sel);
-        detailPanel = '<div class="card" style="margin-top:14px;">' +
+        detailPanel = '<div class="card order-detail-panel">' +
           '<div class="block-title" style="margin-bottom:14px;">' +
             '<h2><strong>' + orderLabel(sel.raqam) + '</strong> — ' + fmtDate(sel.sana) + (sel.izoh ? ' — ' + esc(sel.izoh) : '') + ' <span class="badge ' + status2.cls + '">' + status2.label + '</span></h2>' +
             '<div class="row-actions">' +
@@ -889,7 +899,7 @@
           orderDetailBody(sel) +
         '</div>';
       }
-      listHtml = '<div class="order-grid">' + tiles + '</div>' + detailPanel;
+      listHtml = '<div class="order-grid-wrap' + (sel ? " split" : "") + '"><div class="order-grid">' + tiles + '</div>' + detailPanel + '</div>';
     } else {
       listHtml = '<table class="ledger"><thead><tr><th>Farmoyish</th><th>Sana</th><th>Izoh</th><th>Bajarilishi</th><th>Holat</th><th></th></tr></thead><tbody>' +
         orders.map(function (o) {
