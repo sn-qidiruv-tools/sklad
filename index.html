@@ -269,18 +269,24 @@
   .view-toggle { display: inline-flex; gap: 2px; background: rgba(120,120,128,0.10); border-radius: 999px; padding: 3px; }
   .view-toggle button { border: none; background: transparent; padding: 6px 13px; border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--muted); cursor: pointer; }
   .view-toggle button.active { background: var(--glass-strong); color: var(--ink); box-shadow: var(--shadow); }
-  .order-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 10px; }
+  .order-grid { display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch; justify-content: flex-start; }
   .order-tile {
-    aspect-ratio: 1; border-radius: 16px; border: 1px solid var(--hairline);
-    background: var(--glass); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
-    display: flex; align-items: center; justify-content: center; cursor: pointer;
-    font-family: ui-monospace, 'SF Mono', monospace; font-weight: 700; font-size: 13px; color: var(--ink);
-    transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    --cardblur: 18;
+    aspect-ratio: 3 / 4; width: 132px; border-radius: 20px; border: 1px solid var(--glass-border);
+    background: var(--glass); -webkit-backdrop-filter: blur(calc(var(--cardblur) * 1px)) saturate(180%); backdrop-filter: blur(calc(var(--cardblur) * 1px)) saturate(180%);
+    display: grid; grid-template-rows: 1fr auto; align-items: stretch; justify-items: stretch;
+    padding: 14px; gap: 8px; cursor: pointer; text-align: left;
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif; color: var(--ink);
+    box-shadow: 0 1rem 2rem -1rem rgba(20,20,30,0.35);
+    transition: transform .16s ease, box-shadow .16s ease, background .16s ease;
   }
-  .order-tile:hover { transform: scale(1.06); box-shadow: var(--shadow); }
-  .order-tile.selected { background: var(--accent); color: var(--accent-ink); border-color: transparent; box-shadow: 0 4px 14px rgba(10,132,255,0.35); }
-  .order-tile.status-ok:not(.selected) { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ok) 55%, transparent); }
-  .order-tile.status-warn:not(.selected) { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--warn) 55%, transparent); }
+  .order-tile-num { display: flex; align-items: center; justify-content: center; font-family: ui-monospace, 'SF Mono', monospace; font-weight: 700; font-size: 22px; line-height: 1.15; text-align: center; }
+  .order-tile-foot { display: flex; align-items: center; justify-content: center; }
+  .order-tile:hover { transform: translateY(-5px); box-shadow: 0 1.5rem 2.6rem -1rem rgba(20,20,30,0.45); }
+  .order-tile.selected { background: var(--accent); color: var(--accent-ink); border-color: transparent; box-shadow: 0 1rem 2.2rem -0.8rem rgba(10,132,255,0.55); }
+  .order-tile.selected .badge { background: rgba(255,255,255,0.22); color: var(--accent-ink); }
+  .order-tile.status-ok:not(.selected) { box-shadow: 0 1rem 2rem -1rem rgba(20,20,30,0.35), inset 0 0 0 2px color-mix(in srgb, var(--ok) 55%, transparent); }
+  .order-tile.status-warn:not(.selected) { box-shadow: 0 1rem 2rem -1rem rgba(20,20,30,0.35), inset 0 0 0 2px color-mix(in srgb, var(--warn) 55%, transparent); }
   .icon-btn:hover { transform: scale(1.15); }
   .icon-btn:active { transform: scale(1.02); }
   .btn.danger-icon { color: var(--danger); }
@@ -848,7 +854,10 @@
       var tiles = orders.map(function (o) {
         var status = orderStatus(o);
         var selected = state.orderGridSelected === o.id;
-        return '<button type="button" class="order-tile ' + (selected ? "selected" : "status-" + status.cls) + '" title="' + esc(o.izoh || "") + '" data-grid-order="' + o.id + '">' + esc(o.raqam) + '</button>';
+        return '<button type="button" class="order-tile ' + (selected ? "selected" : "status-" + status.cls) + '" title="' + esc(o.izoh || "") + '" data-grid-order="' + o.id + '">' +
+          '<span class="order-tile-num">' + esc(o.raqam) + '</span>' +
+          '<span class="order-tile-foot"><span class="badge ' + (selected ? "" : status.cls) + '">' + status.label + '</span></span>' +
+        '</button>';
       }).join("");
       var sel = state.orderGridSelected ? getOrderById(state.orderGridSelected) : null;
       var detailPanel = "";
