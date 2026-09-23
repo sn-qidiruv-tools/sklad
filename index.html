@@ -195,10 +195,8 @@
     padding: 6px; border-radius: 12px; transition: box-shadow .16s ease, background .16s ease;
     position: relative;
   }
-  .material-row:hover {
-    background: var(--glass-strong);
-    box-shadow: var(--shadow-lg);
-    z-index: 2;
+  @media (hover: hover) and (pointer: fine) {
+    .material-row:hover { background: var(--glass-strong); box-shadow: var(--shadow-lg); z-index: 2; }
   }
   .row-num { font-size: 12px; color: var(--muted); text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
   .material-row input, .material-row select { padding: 9px 11px; border: 1px solid var(--hairline); border-radius: 12px; background: rgba(120,120,128,0.08); color: var(--ink); }
@@ -215,7 +213,7 @@
     border: 1px solid var(--hairline); background: rgba(120,120,128,0.10); cursor: pointer;
     font-weight: 600; font-size: 13.5px; color: var(--ink); transition: background .15s ease, transform .05s ease;
   }
-  .btn:hover { background: rgba(120,120,128,0.18); }
+  @media (hover: hover) and (pointer: fine) { .btn:hover { background: rgba(120,120,128,0.18); } }
   .btn:active { transform: scale(0.97); }
   .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; box-shadow: 0 4px 14px rgba(10,132,255,0.35); }
   .btn.primary:hover { filter: brightness(1.06); background: var(--accent); }
@@ -299,12 +297,12 @@
   }
   .order-tile-num { display: flex; align-items: center; justify-content: center; font-family: ui-monospace, 'SF Mono', monospace; font-weight: 700; font-size: 26px; line-height: 1.15; text-align: center; }
   .order-tile-foot { display: flex; align-items: center; justify-content: center; }
-  .order-tile:hover { transform: translateY(-6px); box-shadow: 0 1.6rem 2.8rem -0.6rem rgba(0,0,0,0.6); }
+  @media (hover: hover) and (pointer: fine) { .order-tile:hover { transform: translateY(-6px); box-shadow: 0 1.6rem 2.8rem -0.6rem rgba(0,0,0,0.6); } }
   .order-tile.selected { background: var(--accent); color: var(--accent-ink); border-color: transparent; box-shadow: 0 1rem 2.4rem -0.6rem rgba(10,132,255,0.6); }
   .order-tile.selected .badge { background: rgba(255,255,255,0.22); color: var(--accent-ink); }
   .order-tile.status-ok:not(.selected) { box-shadow: 0 1rem 2rem -0.6rem rgba(0,0,0,0.55), inset 0 0 0 2px color-mix(in srgb, var(--ok) 55%, transparent); }
   .order-tile.status-warn:not(.selected) { box-shadow: 0 1rem 2rem -0.6rem rgba(0,0,0,0.55), inset 0 0 0 2px color-mix(in srgb, var(--warn) 55%, transparent); }
-  .icon-btn:hover { transform: scale(1.15); }
+  @media (hover: hover) and (pointer: fine) { .icon-btn:hover { transform: scale(1.15); } }
   .icon-btn:active { transform: scale(1.02); }
   .btn.danger-icon { color: var(--danger); }
   .btn.danger-icon:hover { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
@@ -379,6 +377,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script>
 (function () {
   "use strict";
@@ -421,6 +420,7 @@
   function iconPurge() { return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="M6 6l12 12"/></svg>'; }
   function iconPlus() { return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>'; }
   function iconPdf() { return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>'; }
+  function iconDownload() { return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'; }
 
   function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
 
@@ -892,6 +892,7 @@
             '<div class="row-actions">' +
               (sel.hujjatFayl ? '<a class="btn ghost small icon-btn" title="PDF-ni ko\'rish" href="/_blob/' + esc(sel.hujjatFayl) + '" target="_blank" rel="noopener">' + iconPdf() + '</a>' : '') +
               '<button class="btn ghost small icon-btn" title="Ushbu farmoyish uchun kirim qo\'shish" data-quick-receipt="' + sel.id + '">' + iconPlus() + '</button>' +
+              '<button class="btn ghost small icon-btn" title="PDF hisobot yuklab olish" data-pdf-order="' + sel.id + '">' + iconDownload() + '</button>' +
               '<button class="btn ghost small icon-btn" title="Tahrirlash" data-edit-order="' + sel.id + '">' + iconPencil() + '</button>' +
               '<button class="btn ghost small icon-btn danger-icon" title="Savatga tashlash" data-trash-order="' + sel.id + '">' + iconTrash() + '</button>' +
             '</div>' +
@@ -913,7 +914,7 @@
             '<td><span class="badge ' + status.cls + '">' + status.label + '</span></td>' +
             '<td><div class="row-actions">' +
               (o.hujjatFayl ? '<a class="btn ghost small icon-btn" title="Tasdiqlovchi PDF-ni ko\'rish" href="/_blob/' + esc(o.hujjatFayl) + '" target="_blank" rel="noopener">' + iconPdf() + '</a>' : '') +
-              '<button class="btn ghost small icon-btn" title="Ushbu farmoyish uchun kirim qo\'shish" data-quick-receipt="' + o.id + '">' + iconPlus() + '</button><button class="btn ghost small icon-btn" title="Tahrirlash" data-edit-order="' + o.id + '">' + iconPencil() + '</button><button class="btn ghost small icon-btn danger-icon" title="Savatga tashlash" data-trash-order="' + o.id + '">' + iconTrash() + '</button></div></td>' +
+              '<button class="btn ghost small icon-btn" title="Ushbu farmoyish uchun kirim qo\'shish" data-quick-receipt="' + o.id + '">' + iconPlus() + '</button><button class="btn ghost small icon-btn" title="PDF hisobot yuklab olish" data-pdf-order="' + o.id + '">' + iconDownload() + '</button><button class="btn ghost small icon-btn" title="Tahrirlash" data-edit-order="' + o.id + '">' + iconPencil() + '</button><button class="btn ghost small icon-btn danger-icon" title="Savatga tashlash" data-trash-order="' + o.id + '">' + iconTrash() + '</button></div></td>' +
           '</tr>' +
           '<tr><td colspan="6" style="border-top:none;padding-top:0;">' +
             '<details class="detail-toggle"><summary>Batafsil ko\'rish</summary><div class="sub-table">' + orderDetailBody(o) + '</div></details>' +
@@ -1035,7 +1036,7 @@
       filtered.map(function (r) {
         var o = getOrderById(r.farmoyishId);
         return '<tr><td class="num">' + fmtDate(r.sana) + '</td><td class="num"><strong>' + (o ? orderLabel(o.raqam) : "Noma'lum farmoyish") + '</strong>' + (o && o.deleted ? '<span class="sub">(o\'chirilgan)</span>' : '') + '</td><td>' + esc(r.hujjat || "—") + '</td><td>' + receiptMaterialsDetail(r) + '</td>' +
-          '<td><div class="row-actions"><button class="btn ghost small icon-btn" title="Tahrirlash" data-edit-receipt="' + r.id + '">' + iconPencil() + '</button><button class="btn ghost small icon-btn danger-icon" title="Savatga tashlash" data-trash-receipt="' + r.id + '">' + iconTrash() + '</button></div></td></tr>';
+          '<td><div class="row-actions"><button class="btn ghost small icon-btn" title="Tahrirlash" data-edit-receipt="' + r.id + '">' + iconPencil() + '</button><button class="btn ghost small icon-btn" title="PDF hisobot yuklab olish" data-pdf-receipt="' + r.id + '">' + iconDownload() + '</button><button class="btn ghost small icon-btn danger-icon" title="Savatga tashlash" data-trash-receipt="' + r.id + '">' + iconTrash() + '</button></div></td></tr>';
       }).join("") + '</tbody></table>'
       : emptyState("Ushbu filtrga mos kirim topilmadi.", "Filtrlarni tozalash", "receipts");
 
@@ -1132,6 +1133,93 @@
     triggerDownload(blob, "kabel-ombor-zaxira-" + timestampForFile() + ".json");
     showToast("Zaxira nusxa yuklab olindi.");
   }
+  function generateOrderPdf(o) {
+    if (!window.jspdf || !window.jspdf.jsPDF) { showToast("PDF kutubxonasi yuklanmadi. Sahifani yangilab qayta urinib ko'ring."); return; }
+    var doc = new window.jspdf.jsPDF();
+    var pageH = doc.internal.pageSize.getHeight();
+    var y = 20;
+    function checkPage(extra) { if (y + (extra || 0) > pageH - 15) { doc.addPage(); y = 20; } }
+
+    doc.setFont("helvetica", "bold"); doc.setFontSize(17);
+    doc.text(o.raqam + "-farmoyish", 14, y); y += 9;
+    doc.setDrawColor(210); doc.line(14, y - 4, 196, y - 4);
+
+    doc.setFont("helvetica", "normal"); doc.setFontSize(11);
+    doc.text("Sana: " + fmtDate(o.sana), 14, y); y += 6;
+    if (o.izoh) { doc.text("Izoh: " + o.izoh, 14, y); y += 6; }
+    doc.text("Holat: " + orderStatus(o).label, 14, y); y += 10;
+
+    doc.setFont("helvetica", "bold"); doc.setFontSize(13);
+    doc.text("Materiallar bo'yicha", 14, y); y += 7;
+    doc.setFontSize(10);
+    var cols = [14, 95, 130, 165];
+    doc.setFont("helvetica", "bold");
+    doc.text("Material", cols[0], y); doc.text("Reja", cols[1], y); doc.text("Kirim", cols[2], y); doc.text("Qoldiq", cols[3], y);
+    y += 3; doc.line(14, y, 196, y); y += 5;
+    doc.setFont("helvetica", "normal");
+    var progress = orderMaterialProgress(o);
+    if (!progress.length) { doc.text("Material yo'q.", 14, y); y += 6; }
+    progress.forEach(function (p) {
+      checkPage(6);
+      doc.text(String(p.nomi).slice(0, 42), cols[0], y);
+      doc.text(fmtQty(p.reja, p.birlik), cols[1], y);
+      doc.text(fmtQty(p.kirim, p.birlik), cols[2], y);
+      doc.text(fmtQty(p.qoldiq, p.birlik), cols[3], y);
+      y += 6;
+    });
+    y += 6; checkPage(10);
+
+    doc.setFont("helvetica", "bold"); doc.setFontSize(13);
+    doc.text("Hujjatlar bo'yicha", 14, y); y += 7;
+    doc.setFontSize(10);
+    var docsList = orderReceiptsForOrder(o);
+    if (!docsList.length) { doc.setFont("helvetica", "normal"); doc.text("Hali kirim yo'q.", 14, y); y += 6; }
+    docsList.forEach(function (r) {
+      checkPage(10);
+      doc.setFont("helvetica", "bold");
+      doc.text((r.hujjat || "—") + "   (" + fmtDate(r.sana) + ")", 14, y); y += 5.5;
+      doc.setFont("helvetica", "normal");
+      (r.materiallar || []).forEach(function (m) {
+        checkPage(6);
+        doc.text("• " + m.nomi + ": " + fmtQty(m.miqdor, m.birlik), 18, y); y += 5.5;
+      });
+      y += 2;
+    });
+
+    doc.save(o.raqam + "-farmoyish-" + timestampForFile() + ".pdf");
+  }
+
+  function generateReceiptPdf(r) {
+    if (!window.jspdf || !window.jspdf.jsPDF) { showToast("PDF kutubxonasi yuklanmadi. Sahifani yangilab qayta urinib ko'ring."); return; }
+    var o = getOrderById(r.farmoyishId);
+    var doc = new window.jspdf.jsPDF();
+    var y = 20;
+
+    doc.setFont("helvetica", "bold"); doc.setFontSize(17);
+    doc.text("Kirim hujjati", 14, y); y += 9;
+    doc.setDrawColor(210); doc.line(14, y - 4, 196, y - 4);
+
+    doc.setFont("helvetica", "normal"); doc.setFontSize(11);
+    doc.text("Farmoyish: " + (o ? (o.raqam + "-farmoyish") : "Noma'lum farmoyish"), 14, y); y += 6;
+    doc.text("Sana: " + fmtDate(r.sana), 14, y); y += 6;
+    doc.text("Hujjat: " + (r.hujjat || "—"), 14, y); y += 10;
+
+    doc.setFont("helvetica", "bold"); doc.setFontSize(13);
+    doc.text("Kirim qilingan materiallar", 14, y); y += 7;
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text("Material", 14, y); doc.text("Miqdor", 130, y);
+    y += 3; doc.line(14, y, 196, y); y += 5;
+    doc.setFont("helvetica", "normal");
+    (r.materiallar || []).forEach(function (m) {
+      doc.text(String(m.nomi).slice(0, 55), 14, y);
+      doc.text(fmtQty(m.miqdor, m.birlik), 130, y);
+      y += 6;
+    });
+
+    doc.save("kirim-" + timestampForFile() + ".pdf");
+  }
+
   function doExportExcel() {
     if (typeof XLSX === "undefined") { showToast("Excel kutubxonasi yuklanmadi. Internetni tekshirib, sahifani yangilang."); return; }
 
@@ -1337,6 +1425,12 @@
       document.querySelectorAll("[data-quick-receipt]").forEach(function (btn) {
         btn.addEventListener("click", function () { startReceiptForOrder(btn.dataset.quickReceipt); });
       });
+      document.querySelectorAll("[data-pdf-order]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var o = getOrderById(btn.dataset.pdfOrder);
+          if (o) generateOrderPdf(o);
+        });
+      });
       document.querySelectorAll("[data-edit-order]").forEach(function (btn) {
         btn.addEventListener("click", function () {
           var o = getOrderById(btn.dataset.editOrder);
@@ -1491,6 +1585,12 @@
       var clearBtn = document.getElementById("clearFilters");
       if (clearBtn) clearBtn.addEventListener("click", function () { state.receiptFilter = { orderId: "", from: "", to: "", raqamQuery: "" }; render(); });
 
+      document.querySelectorAll("[data-pdf-receipt]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var r = state.receipts.find(function (x) { return x.id === btn.dataset.pdfReceipt; });
+          if (r) generateReceiptPdf(r);
+        });
+      });
       document.querySelectorAll("[data-trash-receipt]").forEach(function (btn) {
         btn.addEventListener("click", function () {
           if (!confirm("Ushbu kirim hujjatini savatga tashlaysizmi? Keyinchalik \"Savat\" bo'limidan tiklashingiz mumkin.")) return;
