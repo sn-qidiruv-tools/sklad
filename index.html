@@ -61,6 +61,39 @@
   button, input, select { font-family: inherit; font-size: inherit; color: inherit; }
   button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
 
+  .app-hidden { display: none !important; }
+
+  .login-screen {
+    position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center;
+    background: #07070b; overflow: hidden; padding: 20px;
+  }
+  .login-blobs { position: absolute; inset: 0; }
+  .lblob { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.7; mix-blend-mode: screen; animation: lblobDrift ease-in-out infinite; }
+  .lblob-pink { width: 60vw; height: 60vw; max-width: 480px; max-height: 480px; background: radial-gradient(circle, #ff2fb0, transparent 70%); top: -8%; left: -12%; animation-duration: 19s; }
+  .lblob-green { width: 62vw; height: 62vw; max-width: 520px; max-height: 520px; background: radial-gradient(circle, #24ffa0, transparent 70%); bottom: -12%; right: -10%; animation-duration: 23s; animation-delay: 2s; }
+  .lblob-blue { width: 48vw; height: 48vw; max-width: 400px; max-height: 400px; background: radial-gradient(circle, #2f9bff, transparent 70%); top: 38%; left: 58%; animation-duration: 21s; animation-delay: 4s; }
+  @keyframes lblobDrift { 0% { transform: translate(0,0) scale(1); } 50% { transform: translate(50px,-40px) scale(1.12); } 100% { transform: translate(0,0) scale(1); } }
+  @media (prefers-reduced-motion: reduce) { .lblob { animation: none; } }
+
+  .login-card {
+    position: relative; z-index: 1; width: 340px; max-width: 100%; padding: 34px 30px;
+    border-radius: 22px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.22);
+    -webkit-backdrop-filter: blur(22px) saturate(160%); backdrop-filter: blur(22px) saturate(160%);
+    box-shadow: 0 24px 70px rgba(0,0,0,0.55); color: #fff;
+  }
+  .login-card h1 { text-align: center; font-size: 21px; margin: 0 0 24px; font-weight: 700; letter-spacing: -0.01em; }
+  .login-card .field { margin-bottom: 15px; }
+  .login-card label { display: block; font-size: 12px; color: rgba(255,255,255,0.65); margin-bottom: 5px; font-weight: 500; }
+  .login-card input {
+    width: 100%; padding: 11px 13px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.25);
+    background: rgba(255,255,255,0.08); color: #fff; font-size: 14px;
+  }
+  .login-card input::placeholder { color: rgba(255,255,255,0.35); }
+  .login-card input:focus { background: rgba(255,255,255,0.14); outline: 2px solid rgba(255,255,255,0.4); outline-offset: 1px; }
+  .login-card .form-error { color: #ff8a8a; font-size: 12.5px; margin: -4px 0 14px; display: none; }
+  .login-card .form-error.show { display: block; }
+  .login-card .btn.primary { background: var(--accent); }
+
   .bg-blobs { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
   .blob { position: absolute; border-radius: 50%; filter: blur(70px); opacity: 0.55; animation: blobDrift ease-in-out infinite; }
   .blob-1 { width: 460px; height: 460px; top: -10%; left: -8%; background: radial-gradient(circle, #5AC8FA, transparent 70%); animation-duration: 26s; }
@@ -325,6 +358,27 @@
 </head>
 <body>
 
+<div id="loginScreen" class="login-screen">
+  <div class="login-blobs" aria-hidden="true">
+    <span class="lblob lblob-pink"></span>
+    <span class="lblob lblob-green"></span>
+    <span class="lblob lblob-blue"></span>
+  </div>
+  <form class="login-card" id="loginForm">
+    <h1>Login</h1>
+    <div class="field">
+      <label for="loginUser">Login</label>
+      <input id="loginUser" type="text" autocomplete="username" placeholder="masalan: s.eshov" required>
+    </div>
+    <div class="field">
+      <label for="loginPass">Parol</label>
+      <input id="loginPass" type="password" autocomplete="current-password" placeholder="••••••••" required>
+    </div>
+    <div class="form-error" id="loginError">Login yoki parol noto'g'ri.</div>
+    <button type="submit" class="btn primary" style="width:100%;justify-content:center;">Kirish</button>
+  </form>
+</div>
+
 <div class="bg-blobs" aria-hidden="true">
   <span class="blob blob-1"></span>
   <span class="blob blob-2"></span>
@@ -349,7 +403,7 @@
   <span style="top:2%;left:32%;font-size:22px;animation-duration:19s;animation-delay:.5s;">8</span>
 </div>
 
-<div class="shell">
+<div class="shell app-hidden" id="appShell">
   <aside class="sidebar">
     <div class="brand">
       <span class="brand-mark"></span>
@@ -363,6 +417,7 @@
       <button class="navlink" data-view="backup"><span class="dot"></span>Zaxira nusxa</button>
     </nav>
     <div class="sidebar-foot" id="storageStatus">Saqlash rejimi aniqlanmoqda...</div>
+    <button class="btn ghost small" id="logoutBtn" style="margin-top:8px;">Chiqish</button>
   </aside>
   <div class="topbar" id="topbarNav">
     <button data-view="dashboard">Bosh sahifa</button>
@@ -392,6 +447,46 @@
   var storageMode = "connecting"; // "connecting" | "shared" | "local"
   var dbHandle = null;
   var assetsHandle = null;
+
+  // ---------- Telegram relay (optional) ----------
+  // Deploy the Google Apps Script relay (see setup guide) and paste its Web App URL here.
+  // Leave empty ("") to disable Telegram forwarding entirely.
+  var TELEGRAM_RELAY_URL = "";
+
+  function pdfFieldHint() {
+    var parts = [];
+    if (assetsHandle) parts.push("Claude saytida saqlanadi");
+    if (TELEGRAM_RELAY_URL) parts.push("Telegram guruhga yuboriladi");
+    if (!parts.length) return "Fayl hech qayerga saqlanmaydi (Telegram ulanmagan).";
+    return parts.join(", ") + ". Fayl saytning o'zida (brauzerda) saqlanmaydi.";
+  }
+  function receiptPdfHint() {
+    return TELEGRAM_RELAY_URL ? "Fayl saytda saqlanmaydi, faqat Telegram guruhga yuboriladi." : "Fayl hech qayerga saqlanmaydi (Telegram ulanmagan).";
+  }
+
+  function sendToTelegramRelay(file, caption) {
+    if (!TELEGRAM_RELAY_URL) return Promise.resolve();
+    if (!file) {
+      return fetch(TELEGRAM_RELAY_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ caption: caption })
+      }).catch(function () {});
+    }
+    return new Promise(function (resolve) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var base64 = String(reader.result).split(",")[1];
+        fetch(TELEGRAM_RELAY_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({ fileBase64: base64, filename: file.name, caption: caption })
+        }).then(function () { resolve(); }).catch(function () { resolve(); });
+      };
+      reader.onerror = function () { resolve(); };
+      reader.readAsDataURL(file);
+    });
+  }
   var unsubs = [];
 
   var state = {
@@ -835,12 +930,11 @@
             '</div>' +
             '<div class="form-row" style="grid-template-columns:1fr;">' +
               '<div class="field"><label for="orderPdf">Tasdiqlovchi hujjat (muhrlangan PDF)</label>' +
-                (assetsHandle ?
-                  '<input type="file" id="orderPdf" accept="application/pdf">' +
-                  (editing && editing.hujjatFayl ?
-                    '<div class="row-hint" style="margin-top:2px;"><a href="/_blob/' + esc(editing.hujjatFayl) + '" target="_blank" rel="noopener">' + iconPdf() + ' Joriy faylni ko\'rish</a> &nbsp; <label style="display:inline-flex;align-items:center;gap:5px;font-weight:400;"><input type="checkbox" id="orderPdfRemove"> olib tashlash</label></div>'
-                    : '')
-                  : '<div class="row-hint">Fayl biriktirish bu ko\'rinishda mavjud emas (faqat Claude saytida ishlaydi).</div>') +
+                '<input type="file" id="orderPdf" accept="application/pdf">' +
+                (editing && editing.hujjatFayl ?
+                  '<div class="row-hint" style="margin-top:2px;"><a href="/_blob/' + esc(editing.hujjatFayl) + '" target="_blank" rel="noopener">' + iconPdf() + ' Joriy faylni ko\'rish</a> &nbsp; <label style="display:inline-flex;align-items:center;gap:5px;font-weight:400;"><input type="checkbox" id="orderPdfRemove"> olib tashlash</label></div>'
+                  : '') +
+                '<div class="row-hint" style="margin-top:4px;">' + pdfFieldHint() + '</div>' +
               '</div>' +
             '</div>' +
             '<div class="field" style="margin-bottom:10px;"><label>Demontaj uchun rejalashtirilgan materiallar</label></div>' +
@@ -1002,6 +1096,11 @@
             '<div class="form-row" style="grid-template-columns: 1fr; margin-top:14px;">' +
               '<div class="field"><label for="rcHujjat">Hujjat raqami / nomi</label><input id="rcHujjat" type="text" placeholder="masalan: Kirim-akt №45" value="' + esc(meta.hujjat) + '"></div>' +
             '</div>' +
+            '<div class="form-row" style="grid-template-columns: 1fr;">' +
+              '<div class="field"><label for="rcPdf">Asl hujjat (PDF)</label><input type="file" id="rcPdf" accept="application/pdf">' +
+                '<div class="row-hint" style="margin-top:4px;">' + receiptPdfHint() + '</div>' +
+              '</div>' +
+            '</div>' +
             '<div class="form-actions"><button type="submit" class="btn primary">' + (state.editingReceiptId ? "O'zgarishlarni saqlash" : "Kirimni saqlash") + '</button>' +
             (state.editingReceiptId ? '<button type="button" class="btn ghost" id="cancelReceiptEdit">Bekor qilish</button>' : '') +
             '</div>' +
@@ -1108,6 +1207,9 @@
         '</div></div>' +
       '<div class="card"><p style="margin-top:0;color:var(--muted);font-size:13.5px;"><strong style="color:var(--ink);">Excel uchun.</strong> Barcha ma\'lumotlarni Excel (.xlsx) fayl qilib yuklab oling — ichida "Farmoyishlar" va "Kirimlar" nomli ikkita alohida varaq bo\'ladi. Faylni Excel\'da yoki Google Sheets\'da to\'g\'ridan-to\'g\'ri ochish mumkin.</p>' +
         '<div class="backup-actions"><button class="btn" id="exportExcelBtn">Excel (.xlsx) qilib yuklab olish</button></div></div>' +
+      '<div class="card"><p style="margin-top:0;color:var(--muted);font-size:13.5px;"><strong style="color:var(--ink);">Telegram ulanishi.</strong> ' +
+        (TELEGRAM_RELAY_URL ? "🟢 Ulanish manzili kiritilgan. Sinov xabari yuborib tekshiring." : "🟡 Hali ulanmagan — TELEGRAM_RELAY_URL bo'sh. Sozlash yo'riqnomasiga qarang.") +
+        '</p><div class="backup-actions"><button class="btn" id="telegramTestBtn"' + (TELEGRAM_RELAY_URL ? "" : " disabled") + '>Telegram\'ni sinab ko\'rish</button></div></div>' +
       '<div class="danger-zone"><h3>Barcha ma\'lumotni o\'chirish</h3><p>Bu amal savatdagilar bilan birga barchasini butunlay o\'chiradi. Oldin zaxira nusxa oling.</p>' +
         '<button class="btn danger-outline" id="wipeBtn">Hammasini o\'chirish</button></div>';
     return pageHead("Zaxira nusxa", "Ma'lumotlaringizni saqlab qo'ying yoki boshqa dasturga ko'chiring.") + body;
@@ -1403,6 +1505,11 @@
             var task = state.editingOrderId ? updateOrderRecord(state.editingOrderId, data) : addOrderRecord(Object.assign({ deleted: false, hujjatFayl: hujjatFayl || null }, data));
             task.then(function () {
               if (oldAssetId && (pdfFile || wantsRemove) && assetsHandle) { assetsHandle.delete(oldAssetId).catch(function () {}); }
+              if (TELEGRAM_RELAY_URL) {
+                var caption = raqam + "-farmoyish\nSana: " + fmtDate(sana) + (izoh ? "\nIzoh: " + izoh : "") +
+                  "\nMateriallar:\n" + materiallar.map(function (m) { return "- " + m.nomi + ": " + fmtQty(m.miqdor, m.birlik); }).join("\n");
+                sendToTelegramRelay(pdfFile, caption);
+              }
               showToast(state.editingOrderId ? "Farmoyish yangilandi." : raqam + "-farmoyish saqlandi.");
               state.showOrderForm = false;
               resetOrderForm();
@@ -1537,9 +1644,16 @@
             var mt = progress.find(function (p) { return p.nomi === r.materialNomi; });
             return { nomi: r.materialNomi, miqdor: Number(r.miqdor), birlik: mt ? mt.birlik : "m" };
           });
+          var rcPdfInput = document.getElementById("rcPdf");
+          var rcPdfFile = rcPdfInput && rcPdfInput.files[0];
           var data = { farmoyishId: farmoyishId, sana: sana, hujjat: hujjat, materiallar: materiallar };
           var task = state.editingReceiptId ? updateReceiptRecord(state.editingReceiptId, data) : addReceiptRecord(data);
           task.then(function () {
+            if (TELEGRAM_RELAY_URL) {
+              var caption = "Kirim — " + order.raqam + "-farmoyish\nSana: " + fmtDate(sana) + (hujjat ? "\nHujjat: " + hujjat : "") +
+                "\nMateriallar:\n" + materiallar.map(function (m) { return "- " + m.nomi + ": " + fmtQty(m.miqdor, m.birlik); }).join("\n");
+              sendToTelegramRelay(rcPdfFile, caption);
+            }
             showToast(state.editingReceiptId ? "Kirim yangilandi." : "Kirim saqlandi.");
             state.showReceiptForm = false;
             resetReceiptForm();
@@ -1613,6 +1727,13 @@
     if (state.view === "backup") {
       document.getElementById("exportBtn").addEventListener("click", doExport);
       document.getElementById("exportExcelBtn").addEventListener("click", doExportExcel);
+      var tgTestBtn = document.getElementById("telegramTestBtn");
+      if (tgTestBtn) tgTestBtn.addEventListener("click", function () {
+        showToast("Sinov xabari yuborilmoqda...");
+        sendToTelegramRelay(null, "✅ Kabel Ombori — sinov xabari muvaffaqiyatli yetib bordi!").then(function () {
+          showToast("Yuborildi. Telegram guruhingizni tekshiring.");
+        });
+      });
       var importBtn = document.getElementById("importBtn"), importFile = document.getElementById("importFile");
       importBtn.addEventListener("click", function () { importFile.click(); });
       importFile.addEventListener("change", function () {
@@ -1626,11 +1747,63 @@
     }
   }
 
-  resetOrderForm();
-  resetReceiptForm();
-  bindNav();
-  render();
-  initStorage();
+  // ---------- Login gate ----------
+  // NOTE: this is a simple front-door check for a static, client-only page —
+  // the credentials live in this file's source, so it deters casual access
+  // but is not real server-side security.
+  var AUTH_KEY = "kabelOmbor.auth.v1";
+  var LOGIN_USER = "s.eshov";
+  var LOGIN_PASS = "admin1";
+
+  function isLoggedIn() {
+    try { return localStorage.getItem(AUTH_KEY) === "1"; } catch (e) { return false; }
+  }
+  function setLoggedIn(v) {
+    try { localStorage.setItem(AUTH_KEY, v ? "1" : "0"); } catch (e) {}
+  }
+
+  function initApp() {
+    resetOrderForm();
+    resetReceiptForm();
+    bindNav();
+    render();
+    initStorage();
+  }
+
+  function showApp() {
+    document.getElementById("loginScreen").classList.add("app-hidden");
+    document.getElementById("appShell").classList.remove("app-hidden");
+  }
+
+  var loginForm = document.getElementById("loginForm");
+  loginForm.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var u = document.getElementById("loginUser").value.trim();
+    var p = document.getElementById("loginPass").value;
+    var errBox = document.getElementById("loginError");
+    if (u === LOGIN_USER && p === LOGIN_PASS) {
+      setLoggedIn(true);
+      errBox.classList.remove("show");
+      showApp();
+      initApp();
+    } else {
+      errBox.classList.add("show");
+    }
+  });
+
+  document.addEventListener("click", function (e) {
+    if (e.target && e.target.id === "logoutBtn") {
+      setLoggedIn(false);
+      document.getElementById("appShell").classList.add("app-hidden");
+      document.getElementById("loginScreen").classList.remove("app-hidden");
+      document.getElementById("loginPass").value = "";
+    }
+  });
+
+  if (isLoggedIn()) {
+    showApp();
+    initApp();
+  }
 })();
 </script>
 </body>
