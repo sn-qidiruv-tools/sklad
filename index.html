@@ -978,6 +978,7 @@
             '</div>' +
             '<div class="form-actions" style="margin-top:10px;"><button type="submit" class="btn primary">' + (state.editingOrderId ? "O'zgarishlarni saqlash" : "Farmoyishni saqlash") + '</button>' +
             (state.editingOrderId ? '<button type="button" class="btn ghost" id="cancelOrderEdit">Bekor qilish</button>' : '') +
+            (state.editingOrderId ? '<button type="button" class="btn" id="orderTgSend"' + (TELEGRAM_RELAY_URL ? '' : ' disabled') + ' title="Saqlangan farmoyishni (tanlangan PDF bilan) Telegramga yangi xabar qilib yuborish">\uD83D\uDCE4 Telegramga yuborish</button>' : '') +
             '</div>' +
           '</form></div>';
       }
@@ -1512,6 +1513,23 @@
         });
         var cancelEditBtn = document.getElementById("cancelOrderEdit");
         if (cancelEditBtn) cancelEditBtn.addEventListener("click", function () { state.showOrderForm = false; resetOrderForm(); render(); });
+
+        var tgSendBtn = document.getElementById("orderTgSend");
+        if (tgSendBtn) tgSendBtn.addEventListener("click", function () {
+          var o = getOrderById(state.editingOrderId);
+          if (!o) return;
+          var pdfInputEl = document.getElementById("orderPdf");
+          var f = pdfInputEl && pdfInputEl.files[0];
+          var ask = o.raqam + "-farmoyish Telegramga yangi xabar bo'lib yuboriladi" + (f ? " (PDF: " + f.name + ")" : " (PDFsiz, faqat matn)") +
+            ".\n\nBu tugmani qayta bossangiz, guruhda dublikat paydo bo'ladi. Davom etasizmi?";
+          if (!confirm(ask)) return;
+          tgSendBtn.disabled = true;
+          showToast("Yuborilmoqda...");
+          sendToTelegramRelay(f || null, { action: "order", orderId: o.id, text: orderTelegramText(o) }).then(function () {
+            tgSendBtn.disabled = false;
+            showToast("So'rov yuborildi. Telegramni tekshiring.");
+          });
+        });
 
         document.getElementById("orderForm").addEventListener("submit", function (e) {
           e.preventDefault();
