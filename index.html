@@ -464,28 +464,58 @@
     return TELEGRAM_RELAY_URL ? "Fayl saytda saqlanmaydi, faqat Telegram guruhga yuboriladi." : "Fayl hech qayerga saqlanmaydi (Telegram ulanmagan).";
   }
 
-  function sendToTelegramRelay(file, caption) {
+  function sendToTelegramRelay(file, payload) {
     if (!TELEGRAM_RELAY_URL) return Promise.resolve();
-    if (!file) {
+    function post(body) {
       return fetch(TELEGRAM_RELAY_URL, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ caption: caption })
+        body: JSON.stringify(body)
       }).catch(function () {});
     }
+    if (!file) return post(payload);
     return new Promise(function (resolve) {
       var reader = new FileReader();
       reader.onload = function () {
-        var base64 = String(reader.result).split(",")[1];
-        fetch(TELEGRAM_RELAY_URL, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify({ fileBase64: base64, filename: file.name, caption: caption })
-        }).then(function () { resolve(); }).catch(function () { resolve(); });
+        payload.fileBase64 = String(reader.result).split(",")[1];
+        payload.filename = file.name;
+        post(payload).then(resolve);
       };
       reader.onerror = function () { resolve(); };
       reader.readAsDataURL(file);
     });
+  }
+
+  // Farmoyish xabari matni: material bo'yicha reja / kirim / qoldiq
+  function orderTelegramText(o) {
+    var rows = orderMaterialProgress(o);
+    var lines = rows.map(function (p) {
+      var done = p.reja > 0 && p.kirim >= p.reja;
+      return "\u2022 " + p.nomi + ": reja " + fmtQty(p.reja, p.birlik) + " | kirim " + fmtQty(p.kirim, p.birlik) +
+        " | qoldiq " + fmtQty(p.qoldiq, p.birlik) + (done ? " \u2705" : "");
+    });
+    return "\uD83D\uDCC4 " + o.raqam + "-farmoyish\n" +
+      "\uD83D\uDCC5 Sana: " + fmtDate(o.sana) + "\n" +
+      (o.izoh ? "\uD83D\uDCCD Izoh: " + o.izoh + "\n" : "") +
+      "\uD83D\uDCCA Holat: " + orderStatus(o).label + " (" + orderAvgPct(o) + "%)\n\n" +
+      "Materiallar:\n" + lines.join("\n");
+  }
+
+  function receiptNote(prefix, order, sana, hujjat, materiallar) {
+    return prefix + " \u2014 " + order.raqam + "-farmoyish\n" +
+      "\uD83D\uDCC5 " + fmtDate(sana) + (hujjat ? "\n\uD83D\uDCCE Hujjat: " + hujjat : "") + "\n" +
+      (materiallar || []).map(function (m) { return "\u2022 " + m.nomi + ": " + fmtQty(m.miqdor, m.birlik); }).join("\n");
+  }
+
+  // Kirim o'zgarganda: asl xabar izohini yangilaydi + reply yuboradi
+  function notifyReceiptChange(orderId, note, file) {
+    if (!TELEGRAM_RELAY_URL) return;
+    // jamoaviy rejimda ma'lumot serverdan yangilanishi uchun biroz kutamiz
+    setTimeout(function () {
+      var o = getOrderById(orderId);
+      if (!o) return;
+      sendToTelegramRelay(file || null, { action: "receipt", orderId: orderId, text: orderTelegramText(o), note: note });
+    }, 1500);
   }
   var unsubs = [];
 
@@ -590,9 +620,10 @@
   // ---------- Unified record operations (all return Promises) ----------
   function addOrderRecord(data) {
     if (storageMode === "shared" && dbHandle) return dbHandle.collection("farmoyishlar").add(data);
-    state.orders.push(Object.assign({ id: uid() }, data));
+    var newId = uid();
+    state.orders.push(Object.assign({ id: newId }, data));
     saveLocal(ORDERS_KEY, state.orders);
-    return Promise.resolve();
+    return Promise.resolve({ id: newId });
   }
   function updateOrderRecord(id, data) {
     if (storageMode === "shared" && dbHandle) return dbHandle.doc("farmoyishlar/" + id).update(data);
@@ -1502,15 +1533,21 @@
           function finalizeSave(hujjatFayl, includeHujjatFayl) {
             var data = { raqam: raqam, sana: sana, izoh: izoh, materiallar: materiallar };
             if (includeHujjatFayl) data.hujjatFayl = hujjatFayl;
-            var task = state.editingOrderId ? updateOrderRecord(state.editingOrderId, data) : addOrderRecord(Object.assign({ deleted: false, hujjatFayl: hujjatFayl || null }, data));
-            task.then(function () {
+            var wasEditingId = state.editingOrderId;
+            var task = wasEditingId ? updateOrderRecord(wasEditingId, data) : addOrderRecord(Object.assign({ deleted: false, hujjatFayl: hujjatFayl || null }, data));
+            task.then(function (ref) {
               if (oldAssetId && (pdfFile || wantsRemove) && assetsHandle) { assetsHandle.delete(oldAssetId).catch(function () {}); }
               if (TELEGRAM_RELAY_URL) {
-                var caption = raqam + "-farmoyish\nSana: " + fmtDate(sana) + (izoh ? "\nIzoh: " + izoh : "") +
-                  "\nMateriallar:\n" + materiallar.map(function (m) { return "- " + m.nomi + ": " + fmtQty(m.miqdor, m.birlik); }).join("\n");
-                sendToTelegramRelay(pdfFile, caption);
+                var tgOrderId = wasEditingId || (ref && ref.id);
+                var snapshot = { id: tgOrderId, raqam: raqam, sana: sana, izoh: izoh, materiallar: materiallar };
+                var tgText = orderTelegramText(snapshot);
+                if (!wasEditingId || pdfFile) {
+                  sendToTelegramRelay(pdfFile, { action: "order", orderId: tgOrderId, text: tgText });
+                } else {
+                  sendToTelegramRelay(null, { action: "update", orderId: tgOrderId, text: tgText });
+                }
               }
-              showToast(state.editingOrderId ? "Farmoyish yangilandi." : raqam + "-farmoyish saqlandi.");
+              showToast(wasEditingId ? "Farmoyish yangilandi." : raqam + "-farmoyish saqlandi.");
               state.showOrderForm = false;
               resetOrderForm();
               render();
@@ -1647,13 +1684,14 @@
           var rcPdfInput = document.getElementById("rcPdf");
           var rcPdfFile = rcPdfInput && rcPdfInput.files[0];
           var data = { farmoyishId: farmoyishId, sana: sana, hujjat: hujjat, materiallar: materiallar };
-          var task = state.editingReceiptId ? updateReceiptRecord(state.editingReceiptId, data) : addReceiptRecord(data);
+          var wasEditingReceipt = !!state.editingReceiptId;
+          var task = wasEditingReceipt ? updateReceiptRecord(state.editingReceiptId, data) : addReceiptRecord(data);
           task.then(function () {
-            if (TELEGRAM_RELAY_URL) {
-              var caption = "Kirim — " + order.raqam + "-farmoyish\nSana: " + fmtDate(sana) + (hujjat ? "\nHujjat: " + hujjat : "") +
-                "\nMateriallar:\n" + materiallar.map(function (m) { return "- " + m.nomi + ": " + fmtQty(m.miqdor, m.birlik); }).join("\n");
-              sendToTelegramRelay(rcPdfFile, caption);
-            }
+            notifyReceiptChange(
+              farmoyishId,
+              receiptNote(wasEditingReceipt ? "\u270F\uFE0F Kirim o'zgartirildi" : "\uD83D\uDCE5 Yangi kirim", order, sana, hujjat, materiallar),
+              rcPdfFile
+            );
             showToast(state.editingReceiptId ? "Kirim yangilandi." : "Kirim saqlandi.");
             state.showReceiptForm = false;
             resetReceiptForm();
@@ -1708,18 +1746,33 @@
       document.querySelectorAll("[data-trash-receipt]").forEach(function (btn) {
         btn.addEventListener("click", function () {
           if (!confirm("Ushbu kirim hujjatini savatga tashlaysizmi? Keyinchalik \"Savat\" bo'limidan tiklashingiz mumkin.")) return;
-          updateReceiptRecord(btn.dataset.trashReceipt, { deleted: true }).then(function () { showToast("Kirim savatga tashlandi."); render(); });
+          updateReceiptRecord(btn.dataset.trashReceipt, { deleted: true }).then(function () {
+            var r = state.receipts.find(function (x) { return x.id === btn.dataset.trashReceipt; });
+            var o = r && getOrderById(r.farmoyishId);
+            if (o) notifyReceiptChange(o.id, receiptNote("\uD83D\uDDD1 Kirim bekor qilindi", o, r.sana, r.hujjat, r.materiallar));
+            showToast("Kirim savatga tashlandi."); render();
+          });
         });
       });
       document.querySelectorAll("[data-restore-receipt]").forEach(function (btn) {
         btn.addEventListener("click", function () {
-          updateReceiptRecord(btn.dataset.restoreReceipt, { deleted: false }).then(function () { showToast("Kirim tiklandi."); render(); });
+          updateReceiptRecord(btn.dataset.restoreReceipt, { deleted: false }).then(function () {
+            var r = state.receipts.find(function (x) { return x.id === btn.dataset.restoreReceipt; });
+            var o = r && getOrderById(r.farmoyishId);
+            if (o) notifyReceiptChange(o.id, receiptNote("\u267B\uFE0F Kirim tiklandi", o, r.sana, r.hujjat, r.materiallar));
+            showToast("Kirim tiklandi."); render();
+          });
         });
       });
       document.querySelectorAll("[data-purge-receipt]").forEach(function (btn) {
         btn.addEventListener("click", function () {
           if (!confirm("Ushbu kirim hujjatini butunlay o'chirasizmi? Bu amalni bekor qilib bo'lmaydi.")) return;
-          hardDeleteReceipt(btn.dataset.purgeReceipt).then(function () { showToast("Butunlay o'chirildi."); render(); });
+          var pr = state.receipts.find(function (x) { return x.id === btn.dataset.purgeReceipt; });
+          var po = pr && getOrderById(pr.farmoyishId);
+          hardDeleteReceipt(btn.dataset.purgeReceipt).then(function () {
+            if (po) notifyReceiptChange(po.id, receiptNote("\u274C Kirim butunlay o'chirildi", po, pr.sana, pr.hujjat, pr.materiallar));
+            showToast("Butunlay o'chirildi."); render();
+          });
         });
       });
     }
@@ -1730,8 +1783,8 @@
       var tgTestBtn = document.getElementById("telegramTestBtn");
       if (tgTestBtn) tgTestBtn.addEventListener("click", function () {
         showToast("Sinov xabari yuborilmoqda...");
-        sendToTelegramRelay(null, "✅ Kabel Ombori — sinov xabari muvaffaqiyatli yetib bordi!").then(function () {
-          showToast("Yuborildi. Telegram guruhingizni tekshiring.");
+        sendToTelegramRelay(null, { action: "test", text: "✅ Kabel Ombori — sinov xabari muvaffaqiyatli yetib bordi!" }).then(function () {
+          showToast("Yuborildi. Telegramni tekshiring.");
         });
       });
       var importBtn = document.getElementById("importBtn"), importFile = document.getElementById("importFile");
