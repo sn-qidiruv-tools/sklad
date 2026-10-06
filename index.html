@@ -560,17 +560,25 @@
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify({ action: "restore" })
-    }).then(function (r) { return r.json(); }).then(function (res) {
-      if (!res || !res.ok) throw new Error("none");
-      var data = JSON.parse(res.data);
+    }).then(function (r) { return r.text(); }).then(function (txt) {
+      var res;
+      try { res = JSON.parse(txt); } catch (e) { throw new Error("old_script"); }
+      if (!res || !res.ok) throw new Error((res && res.error) || "none");
+      var data;
+      try { data = JSON.parse(res.data); } catch (e) { throw new Error("format"); }
       if (!Array.isArray(data.farmoyishlar) || !Array.isArray(data.kirimlar)) throw new Error("format");
       var when = res.at ? new Date(res.at).toLocaleString("uz-UZ") : "";
       var info = (res.name || "zaxira.json") + (when ? " (" + when + ")" : "") +
         "\nFarmoyish: " + data.farmoyishlar.length + ", kirim: " + data.kirimlar.length;
       if (!confirm("Oxirgi zaxira:\n" + info + "\n\nJoriy ma'lumotlar shu zaxira bilan to'liq almashtiriladi. Davom etasizmi?")) { showToast("Bekor qilindi."); return; }
       importRecords(data);
-    }).catch(function () {
-      showToast("Tiklab bo'lmadi. Telegramga hali zaxira yuborilmagan yoki Apps Script ulanmagan.");
+    }).catch(function (err) {
+      var m = err && err.message;
+      if (m === "no_backup" || m === "none") showToast("Apps Script hali birorta zaxira eslab qolmagan. Avval \"Zaxirani Telegramga yuborish\" ni bosing.");
+      else if (m === "old_script") showToast("Apps Script eski versiyada. Yangi kodni qo'yib, New version deploy qiling.");
+      else if (m === "getFile") showToast("Telegramdan faylni olib bo'lmadi. Zaxirani qayta yuboring.");
+      else if (m === "format") showToast("Zaxira fayli formati noto'g'ri.");
+      else showToast("Apps Script'ga ulanib bo'lmadi (" + (m || "xato") + "). Deploy: Who has access = Anyone ekanini tekshiring.");
     });
   }
   var unsubs = [];
