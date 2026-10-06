@@ -442,7 +442,11 @@
   var MATERIALS_KEY = "kabelOmbor.materialTurlari.v1";
 
   function loadLocal(key) { try { var raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : []; } catch (e) { return []; } }
-  function saveLocal(key, list) { try { localStorage.setItem(key, JSON.stringify(list)); } catch (e) { showToast("Saqlashda xatolik yuz berdi."); } }
+  function saveLocal(key, list) {
+    var saved = false;
+    try { localStorage.setItem(key, JSON.stringify(list)); saved = true; } catch (e) { showToast("Saqlashda xatolik yuz berdi."); }
+    if (saved) scheduleBackup();
+  }
 
   var storageMode = "connecting"; // "connecting" | "shared" | "local"
   var dbHandle = null;
@@ -516,6 +520,58 @@
       if (!o) return;
       sendToTelegramRelay(file || null, { action: "receipt", orderId: orderId, text: orderTelegramText(o), note: note });
     }, 1500);
+  }
+
+  // ---------- Telegram zaxira (JSON) ----------
+  var BACKUP_DELAY_MS = 60000; // oxirgi o'zgarishdan 60 soniya keyin yuboriladi
+  var backupTimer = null;
+
+  function scheduleBackup() {
+    if (!TELEGRAM_RELAY_URL) return;
+    clearTimeout(backupTimer);
+    backupTimer = setTimeout(function () { sendBackupToTelegram(false); }, BACKUP_DELAY_MS);
+  }
+
+  function buildBackupFile() {
+    var payload = { farmoyishlar: state.orders, kirimlar: state.receipts, materialTurlari: state.materialTypes, exportedAt: new Date().toISOString() };
+    return new File([JSON.stringify(payload, null, 2)], "kabel-ombor-zaxira-" + timestampForFile() + ".json", { type: "application/json" });
+  }
+
+  function sendBackupToTelegram(manual) {
+    if (!TELEGRAM_RELAY_URL) return Promise.resolve();
+    // bo'sh ma'lumot oxirgi yaxshi zaxiraning ustiga yozilib ketmasligi uchun yuborilmaydi
+    if (!state.orders.length && !state.receipts.length && !state.materialTypes.length) {
+      if (manual) showToast("Zaxiralash uchun ma'lumot yo'q.");
+      return Promise.resolve();
+    }
+    var d = new Date();
+    var hhmm = String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    var caption = "\uD83D\uDCBE Zaxira \u2014 " + fmtDate(todayISO()) + " " + hhmm +
+      "\nFarmoyish: " + state.orders.length + ", kirim: " + state.receipts.length + ", material: " + state.materialTypes.length;
+    return sendToTelegramRelay(buildBackupFile(), { action: "backup", text: caption }).then(function () {
+      if (manual) showToast("Zaxira yuborildi. Telegramni tekshiring.");
+    });
+  }
+
+  function restoreFromTelegram() {
+    if (!TELEGRAM_RELAY_URL) return;
+    showToast("Telegramdan yuklanmoqda...");
+    fetch(TELEGRAM_RELAY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify({ action: "restore" })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res || !res.ok) throw new Error("none");
+      var data = JSON.parse(res.data);
+      if (!Array.isArray(data.farmoyishlar) || !Array.isArray(data.kirimlar)) throw new Error("format");
+      var when = res.at ? new Date(res.at).toLocaleString("uz-UZ") : "";
+      var info = (res.name || "zaxira.json") + (when ? " (" + when + ")" : "") +
+        "\nFarmoyish: " + data.farmoyishlar.length + ", kirim: " + data.kirimlar.length;
+      if (!confirm("Oxirgi zaxira:\n" + info + "\n\nJoriy ma'lumotlar shu zaxira bilan to'liq almashtiriladi. Davom etasizmi?")) { showToast("Bekor qilindi."); return; }
+      importRecords(data);
+    }).catch(function () {
+      showToast("Tiklab bo'lmadi. Telegramga hali zaxira yuborilmagan yoki Apps Script ulanmagan.");
+    });
   }
   var unsubs = [];
 
@@ -1241,7 +1297,10 @@
         '<div class="backup-actions"><button class="btn" id="exportExcelBtn">Excel (.xlsx) qilib yuklab olish</button></div></div>' +
       '<div class="card"><p style="margin-top:0;color:var(--muted);font-size:13.5px;"><strong style="color:var(--ink);">Telegram ulanishi.</strong> ' +
         (TELEGRAM_RELAY_URL ? "🟢 Ulanish manzili kiritilgan. Sinov xabari yuborib tekshiring." : "🟡 Hali ulanmagan — TELEGRAM_RELAY_URL bo'sh. Sozlash yo'riqnomasiga qarang.") +
-        '</p><div class="backup-actions"><button class="btn" id="telegramTestBtn"' + (TELEGRAM_RELAY_URL ? "" : " disabled") + '>Telegram\'ni sinab ko\'rish</button></div></div>' +
+        '</p><div class="backup-actions"><button class="btn" id="telegramTestBtn"' + (TELEGRAM_RELAY_URL ? "" : " disabled") + '>Telegram\'ni sinab ko\'rish</button>' +
+        '<button class="btn" id="telegramBackupBtn"' + (TELEGRAM_RELAY_URL ? "" : " disabled") + '>\uD83D\uDCE4 Zaxirani Telegramga yuborish</button>' +
+        '<button class="btn" id="telegramRestoreBtn"' + (TELEGRAM_RELAY_URL ? "" : " disabled") + '>\uD83D\uDCE5 Telegramdan oxirgi zaxirani tiklash</button></div>' +
+        '<p style="margin:12px 0 0;color:var(--muted);font-size:12.5px;">Har bir o\'zgarishdan taxminan 1 daqiqa keyin zaxira (.json) avtomatik Telegramga yuboriladi.</p></div>' +
       '<div class="danger-zone"><h3>Barcha ma\'lumotni o\'chirish</h3><p>Bu amal savatdagilar bilan birga barchasini butunlay o\'chiradi. Oldin zaxira nusxa oling.</p>' +
         '<button class="btn danger-outline" id="wipeBtn">Hammasini o\'chirish</button></div>';
     return pageHead("Zaxira nusxa", "Ma'lumotlaringizni saqlab qo'ying yoki boshqa dasturga ko'chiring.") + body;
@@ -1805,6 +1864,13 @@
           showToast("Yuborildi. Telegramni tekshiring.");
         });
       });
+      var tgBackupBtn = document.getElementById("telegramBackupBtn");
+      if (tgBackupBtn) tgBackupBtn.addEventListener("click", function () {
+        showToast("Zaxira yuborilmoqda...");
+        sendBackupToTelegram(true);
+      });
+      var tgRestoreBtn = document.getElementById("telegramRestoreBtn");
+      if (tgRestoreBtn) tgRestoreBtn.addEventListener("click", restoreFromTelegram);
       var importBtn = document.getElementById("importBtn"), importFile = document.getElementById("importFile");
       importBtn.addEventListener("click", function () { importFile.click(); });
       importFile.addEventListener("change", function () {
