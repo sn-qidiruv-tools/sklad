@@ -566,7 +566,7 @@
     setTimeout(function () {
       var o = getOrderById(orderId);
       if (!o) return;
-      sendToTelegramRelay(file || null, { action: "receipt", orderId: orderId, text: orderTelegramText(o), note: note });
+      sendToTelegramRelay(file || null, { action: "receipt", orderId: orderId, raqam: o.raqam, text: orderTelegramText(o), note: note });
     }, 1500);
   }
 
@@ -718,6 +718,94 @@
       var mobile = tg.platform === "android" || tg.platform === "ios";
       if (!mobile && tg.requestFullscreen && !tg.isFullscreen) tg.requestFullscreen();
     } catch (e) {}
+  }
+
+  // ---------- Bot ruxsatlari (administrator) ----------
+  var accessKey = "";
+
+  function accessCall(body) {
+    if (!TELEGRAM_RELAY_URL) return Promise.reject(new Error("nourl"));
+    if (!accessKey) accessKey = prompt("Ruxsat kaliti (Apps Script ichidagi ADMIN_KEY):") || "";
+    if (!accessKey) return Promise.reject(new Error("nokey"));
+    body.key = accessKey;
+    return fetch(TELEGRAM_RELAY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(body)
+    }).then(function (r) { return r.text(); }).then(function (txt) {
+      var res;
+      try { res = JSON.parse(txt); } catch (e) { throw new Error("old_script"); }
+      if (!res || !res.ok) {
+        if (res && res.error === "bad_key") accessKey = "";
+        throw new Error((res && res.error) || "fail");
+      }
+      return res;
+    });
+  }
+
+  function accessErrText(m) {
+    if (m === "bad_key") return "Kalit noto'g'ri.";
+    if (m === "nokey") return "Kalit kiritilmadi.";
+    if (m === "bad_id") return "Chat ID faqat raqamlardan iborat bo'lishi kerak.";
+    if (m === "old_script") return "Apps Script eski versiyada. Yangi kodni deploy qiling.";
+    if (m === "nourl") return "Telegram ulanmagan.";
+    return "Ulanib bo'lmadi.";
+  }
+
+  function accessCardHtml() {
+    var dis = TELEGRAM_RELAY_URL ? "" : " disabled";
+    return '<div class="card"><p style="margin-top:0;color:var(--muted);font-size:13.5px;"><strong style="color:var(--ink);">Bot ruxsatlari.</strong> ' +
+      'Botga farmoyish raqamini yozib, farmoyishni olish huquqi berilgan odamlar. Siz doim ruxsatlisiz. ' +
+      'Odam botga bir marta xabar yozsa, bot unga chat ID sini aytadi. Shuni bu yerga kiriting.</p>' +
+      '<div class="form-row"><div class="field"><label for="acId">Chat ID</label><input class="mono" id="acId" inputmode="numeric" placeholder="masalan: 123456789"></div>' +
+      '<div class="field"><label for="acName">Kimligi (ism)</label><input id="acName" placeholder="masalan: Aliyev, ombor mudiri"></div></div>' +
+      '<div class="backup-actions"><button class="btn primary" id="acAdd"' + dis + '>Ruxsat berish</button>' +
+      '<button class="btn" id="acRefresh"' + dis + '>Ro\'yxatni yangilash</button></div>' +
+      '<div id="acList"></div></div>';
+  }
+
+  function renderAccessList(list) {
+    var el = document.getElementById("acList");
+    if (!el) return;
+    el.innerHTML = list.length ?
+      '<table class="ledger" style="margin-top:12px;"><thead><tr><th>Kimligi</th><th>Chat ID</th><th></th></tr></thead><tbody>' +
+      list.map(function (x) {
+        return '<tr><td>' + esc(x.name) + '</td><td class="num">' + esc(x.chatId) + '</td>' +
+          '<td><button class="btn ghost small icon-btn danger-icon" title="Ruxsatni olib tashlash" data-ac-remove="' + esc(x.chatId) + '">' + iconTrash() + '</button></td></tr>';
+      }).join("") + '</tbody></table>'
+      : '<p class="muted-text" style="font-size:13px;margin:12px 0 0;">Hali ruxsat berilgan boshqa odam yo\'q.</p>';
+  }
+
+  function loadAccessList() {
+    accessCall({ action: "access_list" }).then(function (res) { renderAccessList(res.list || []); })
+      .catch(function (err) { showToast(accessErrText(err && err.message)); });
+  }
+
+  function bindAccessCard() {
+    var add = document.getElementById("acAdd");
+    if (!add) return;
+    add.addEventListener("click", function () {
+      var id = document.getElementById("acId").value.trim();
+      var name = document.getElementById("acName").value.trim();
+      if (!/^-?\d{5,15}$/.test(id)) { showToast("Chat ID faqat raqamlardan iborat bo'lishi kerak."); return; }
+      if (!name) { showToast("Kimligini yozing (masalan, ismi)."); return; }
+      accessCall({ action: "access_add", chatId: id, name: name }).then(function (res) {
+        document.getElementById("acId").value = "";
+        document.getElementById("acName").value = "";
+        renderAccessList(res.list || []);
+        showToast("Ruxsat berildi.");
+      }).catch(function (err) { showToast(accessErrText(err && err.message)); });
+    });
+    document.getElementById("acRefresh").addEventListener("click", loadAccessList);
+    document.getElementById("acList").addEventListener("click", function (e) {
+      var b = e.target.closest && e.target.closest("[data-ac-remove]");
+      if (!b) return;
+      if (!confirm("Bu odamdan botdan foydalanish ruxsati olib tashlansinmi?")) return;
+      accessCall({ action: "access_remove", chatId: b.dataset.acRemove }).then(function (res) {
+        renderAccessList(res.list || []);
+        showToast("Ruxsat olib tashlandi.");
+      }).catch(function (err) { showToast(accessErrText(err && err.message)); });
+    });
   }
   var unsubs = [];
 
@@ -1450,7 +1538,7 @@
         '<button class="btn" id="telegramBackupBtn"' + (TELEGRAM_RELAY_URL ? "" : " disabled") + '>\uD83D\uDCE4 Zaxirani Telegramga yuborish</button>' +
         '<button class="btn" id="telegramRestoreBtn"' + (TELEGRAM_RELAY_URL ? "" : " disabled") + '>\uD83D\uDCE5 Telegramdan oxirgi zaxirani tiklash</button></div>' +
         '<p style="margin:12px 0 0;color:var(--muted);font-size:12.5px;">Har bir o\'zgarishdan taxminan 1 daqiqa keyin zaxira (.json) avtomatik Telegramga yuboriladi.</p></div>' +
-      '<div class="danger-zone"><h3>Barcha ma\'lumotni o\'chirish</h3><p>Bu amal savatdagilar bilan birga barchasini butunlay o\'chiradi. Oldin zaxira nusxa oling.</p>' +
+      accessCardHtml() + '<div class="danger-zone"><h3>Barcha ma\'lumotni o\'chirish</h3><p>Bu amal savatdagilar bilan birga barchasini butunlay o\'chiradi. Oldin zaxira nusxa oling.</p>' +
         '<button class="btn danger-outline" id="wipeBtn">Hammasini o\'chirish</button></div>';
     return pageHead("Zaxira nusxa", "Ma'lumotlaringizni saqlab qo'ying yoki boshqa dasturga ko'chiring.") + body +
       '<div style="margin-top:18px;"><button class="btn ghost" data-logout>Chiqish</button></div>';
@@ -1739,7 +1827,7 @@
           if (!confirm(ask)) return;
           tgSendBtn.disabled = true;
           showToast("Yuborilmoqda...");
-          sendToTelegramRelay(f || null, { action: "order", orderId: o.id, text: orderTelegramText(o) }).then(function () {
+          sendToTelegramRelay(f || null, { action: "order", orderId: o.id, raqam: o.raqam, text: orderTelegramText(o) }).then(function () {
             tgSendBtn.disabled = false;
             showToast("So'rov yuborildi. Telegramni tekshiring.");
           });
@@ -1774,9 +1862,9 @@
                 var snapshot = { id: tgOrderId, raqam: raqam, sana: sana, izoh: izoh, materiallar: materiallar };
                 var tgText = orderTelegramText(snapshot);
                 if (!wasEditingId || pdfFile) {
-                  sendToTelegramRelay(pdfFile, { action: "order", orderId: tgOrderId, text: tgText });
+                  sendToTelegramRelay(pdfFile, { action: "order", orderId: tgOrderId, raqam: raqam, text: tgText });
                 } else {
-                  sendToTelegramRelay(null, { action: "update", orderId: tgOrderId, text: tgText });
+                  sendToTelegramRelay(null, { action: "update", orderId: tgOrderId, raqam: raqam, text: tgText });
                 }
               }
               showToast(wasEditingId ? "Farmoyish yangilandi." : raqam + "-farmoyish saqlandi.");
@@ -2010,6 +2098,7 @@
     }
 
     if (state.view === "backup" && userRole !== "viewer") {
+      bindAccessCard();
       document.getElementById("exportBtn").addEventListener("click", doExport);
       document.getElementById("exportExcelBtn").addEventListener("click", doExportExcel);
       var tgTestBtn = document.getElementById("telegramTestBtn");
@@ -2049,10 +2138,10 @@
   ];
   var WRITE_SELECTOR = '#toggleOrderForm,#toggleReceiptForm,[data-quick-receipt],[data-edit-order],[data-trash-order],' +
     '[data-restore-order],[data-purge-order],[data-edit-receipt],[data-trash-receipt],[data-restore-receipt],[data-purge-receipt],' +
-    '[data-edit-material],[data-delete-material],#wipeBtn,#importBtn,#telegramRestoreBtn,#telegramBackupBtn,#telegramTestBtn,#exportExcelBtn';
+    '[data-edit-material],[data-delete-material],#wipeBtn,#importBtn,#telegramRestoreBtn,#telegramBackupBtn,#telegramTestBtn,#exportExcelBtn,#acAdd,#acRefresh,[data-ac-remove]';
 
   function getAuthRole() {
-    try { var r = localStorage.getItem(AUTH_KEY); return (r === "admin" || r === "viewer") ? r : null; } catch (e) { return null; }
+    try { var r = localStorage.getItem(AUTH_KEY); return r === "admin" ? r : null; } catch (e) { return null; }
   }
   function setAuthRole(r) {
     try { if (r) localStorage.setItem(AUTH_KEY, r); else localStorage.removeItem(AUTH_KEY); } catch (e) {}
@@ -2087,7 +2176,7 @@
     var found = USERS.find(function (x) { return x.login === u && x.pass === p; });
     if (found) {
       userRole = found.role;
-      setAuthRole(found.role);
+      setAuthRole(found.role === "admin" ? "admin" : null); // kuzatuvchi kirishi eslab qolinmaydi
       errBox.classList.remove("show");
       showApp();
       initApp();
